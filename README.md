@@ -1,4 +1,16 @@
-:
+🍪 Cookie Clicker Bot — Full Idle Automator A complete and lightweight Cookie Clicker bot designed to run directly in your browser console. Perfect for those who want to leave the game farming on its own while they study, work, or do any other productive activity in real life. ✨ Features
+
+Smart Auto Clicker: clicks the main cookie at normal speed and automatically speeds up during Frenzy / Click Frenzy Auto Golden Cookie + Reindeer: automatically clicks all shimmers (including wrath cookies) Smart Purchases: prioritizes upgrades and then buys the most cost-effective build (lowest price per CpS) Auto Ascension: automatically ascends when reaching the configured amount of Heavenly Chips Automatic purchase of celestial upgrades after ascending Easy-to-adjust settings (speed, spending limit, prestige for ascending, etc.) Clear logs in the console Function to easily pause and resume the bot
+
+How to use
+
+Open Cookie Clicker (web version recommended) Press F12 → Console tab Paste all the code and press Enter The bot starts automatically
+
+To stop: type stopBot() in the console To restart: type startBot() Main settings All settings are in the CONFIG object at the top of the script. You can change:
+
+Click speed Purchase frequency Amount of prestige to automatically ascend Spending limit per purchase Enable/disable logs
+
+Made with love by someone who needed to study while the game continued producing cookies.
 
 🍪 Cookie Clicker Bot — Full Idle Automator
 Um bot completo e leve para Cookie Clicker feito para rodar diretamente no console do navegador.
@@ -34,3 +46,5 @@ Ativar/desativar logs
 
 
 Feito com carinho por alguém que precisava estudar enquanto o jogo continuava produzindo cookies.
+
+
