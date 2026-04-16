@@ -1,5 +1,5 @@
 
-=========================================================================================================================================================
+============================================================================================ 
 
 🍪 Cookie Clicker Bot — Full Idle Automator A complete and lightweight Cookie Clicker bot designed to run directly in your browser console. Perfect for those who want to leave the game farming on its own while they study, work, or do any other productive activity in real life. ✨ Features
 
@@ -15,7 +15,7 @@ Click speed Purchase frequency Amount of prestige to automatically ascend Spendi
 
 Made with love by someone who needed to study while the game continued producing cookies.
 
-=========================================================================================================================================================
+============================================================================================ 
 
 🍪 COOKIE CLICKER BOT — SUPREME EDITION v2.0
 The most complete and intelligent idle bot for Cookie Clicker. Runs directly in your browser console and turns your game into a fully automated cookie factory while you study, work, or live your real life.
@@ -96,7 +96,7 @@ Anyone who wants the game to run 24/7 while you’re busy with real life. The bo
 Ready to conquer the cookie multiverse without lifting a finger?
 Just paste the script and relax — the bot handles everything. 🍪✨
 
-=========================================================================================================================================================
+============================================================================================ 
 
 🍪 Cookie Clicker Bot — Full Idle Automator
 Um bot completo e leve para Cookie Clicker feito para rodar diretamente no console do navegador.
@@ -133,7 +133,7 @@ Ativar/desativar logs
 
 Feito com carinho por alguém que precisava estudar enquanto o jogo continuava produzindo cookies.
 
-=========================================================================================================================================================
+============================================================================================ 
 
 🍪 COOKIE CLICKER BOT — EDIÇÃO SUPREMA v2.0
 O bot mais completo e inteligente já feito para Cookie Clicker. Roda direto no console do navegador e transforma seu jogo em uma máquina de produção automática de cookies enquanto você vive a vida real.
@@ -214,4 +214,4 @@ Perfeito para quem...
 Pronto para dominar o multiverso dos cookies sem esforço?
 Cole o script e relaxa. O bot cuida do resto. 🍪✨
 
-=========================================================================================================================================================
+============================================================================================ 
