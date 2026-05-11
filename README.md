@@ -1,5 +1,43 @@
 
-============================================================================================ 
+============================================================================================
+
+🍪 COOKIE CLICKER BOT — EDIÇÃO DEFINITIVA v3.0
+The most polished, bug-fixed and feature-complete version. Built on top of v2 with critical fixes
+and several new modules.
+
+🐛 Bug fixes vs v2
+• Stock Market now reads the right building (`Bank`, not `Office` — v2 was completely broken here)
+• Wrath Cookies are actually clicked (real type is `golden` with `wrath=1`, not `'wrath'`)
+• Dragon Aura no longer flips on every check (was comparing an ID to an object — always different)
+• Removed non-existent heavenly upgrades from the priority list (e.g. "Wrinkspire depths")
+• Pantheon now respects the swap cooldown instead of spamming failed swaps
+• Garden planting uses the correct `useTool(plantId+1, x, y)` API
+• Default wrinkler strategy keeps 10 fed wrinklers (multiplies bank ~13×) instead of popping all
+
+✨ New features
+• Auto-harvest Sugar Lumps (ignored by v2) — defaults to ripe age (22h)
+• Cursed Finger detection — pauses clicks while the buff is active (CpS×10 happens regardless)
+• Stats persisted to `localStorage` between page reloads
+• Keyboard shortcuts: `Alt+P` to pause/resume, `Alt+S` for status
+• Marginal CpS efficiency for buildings (uses real `storedTotalCps / amount`)
+• Force Hand of Fate combo: only casts during Frenzy by default
+• Optional confirmation before ascending
+• Manual `BOT.ascendAgora()` to force an immediate ascension
+
+How to use
+1. Open Cookie Clicker (web recommended)
+2. F12 → Console tab
+3. Paste the whole `cookieclicker-bot-v3.js` and press Enter
+4. The bot starts automatically
+
+Useful commands
+• `BOT.parar()` — stop the bot
+• `BOT.pausar()` / `BOT.retomar()` — pause / resume
+• `BOT.status()` — full status report
+• `BOT.resetStats()` — reset persisted statistics
+• `BOT.ascendAgora()` — force ascension right now
+
+============================================================================================
 
 🍪 Cookie Clicker Bot — Full Idle Automator A complete and lightweight Cookie Clicker bot designed to run directly in your browser console. Perfect for those who want to leave the game farming on its own while they study, work, or do any other productive activity in real life. ✨ Features
 
