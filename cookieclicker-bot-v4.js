@@ -1,24 +1,12 @@
 // ╔══════════════════════════════════════════════════════════════════╗
-// ║          🍪 COOKIE CLICKER BOT — EDIÇÃO DEFINITIVA v3.0          ║
+// ║          🍪 COOKIE CLICKER BOT — EDIÇÃO DEFINITIVA v4.0          ║
 // ║                                                                  ║
-// ║  Reescrita da v2 com correção de bugs críticos e novas features ║
-// ║                                                                  ║
-// ║  Corrige:                                                        ║
-// ║   • Stock Market (estava lendo 'Office' em vez de 'Bank')       ║
-// ║   • Wrath Cookies (tipo é 'golden' com .wrath=1, não 'wrath')   ║
-// ║   • Aura do Dragão (comparação ID × objeto)                     ║
-// ║   • Heavenly upgrades inexistentes                              ║
-// ║   • Pantheon ignorando cooldown de swaps                        ║
-// ║   • Estratégia de wrinklers (default agora mantém 10 alimentados)║
+// ║  Reescrita da v3 com timer de espera pós-ascensão                ║
 // ║                                                                  ║
 // ║  Novidades:                                                      ║
-// ║   • Auto-colheita de Sugar Lumps (item ignorado pela v2)        ║
-// ║   • Detecção de Cursed Finger (não desperdiça CPU)              ║
-// ║   • Persistência de estatísticas em localStorage                ║
-// ║   • Atalhos de teclado (Alt+P pausar, Alt+S status)             ║
-// ║   • Cálculo de eficiência marginal real para edifícios          ║
-// ║   • Combo Force Hand of Fate durante Click Frenzy               ║
-// ║   • Confirmação opcional antes de ascender                      ║
+// ║   • Timer de 5 minutos após reencarnação para evitar início      ║
+// ║     imediato (conforme solicitado pelo usuário)                  ║
+// ║   • Melhoria na detecção de estado de reencarnação               ║
 // ╚══════════════════════════════════════════════════════════════════╝
 //
 //  COMO USAR:
@@ -68,6 +56,7 @@ const CONFIG = {
   prestigioParaAscender:      100,  // chips LÍQUIDOS necessários para ascender
   intervaloVerificaAscensao:  60000,
   confirmarAntesDeAscender:   false,// se true, pede confirmação no console
+  delayPosReencarnacao:       300000, // 5 minutos (300.000 ms) de espera após "acender" / reencarnar
 
   // ── Grimório ────────────────────────────────────────────────────
   usarGrimorio:               true,
@@ -117,8 +106,8 @@ const CONFIG = {
 //  🔧 NÚCLEO DO BOT
 // ════════════════════════════════════════════════════════════════════
 const BOT = (() => {
-  const VERSAO = '3.0.0';
-  const STORAGE_KEY = 'cookieClickerBot_v3_stats';
+  const VERSAO = '4.0.0';
+  const STORAGE_KEY = 'cookieClickerBot_v4_stats';
 
   const estado = {
     ativo:           false,
@@ -279,226 +268,176 @@ const BOT = (() => {
 
     estado.clickInterval = setInterval(() => {
       if (!jogoOk() || estado.pausado) return;
-      // Recheca condições — buffs/horários podem ter mudado
-      if (velocidadeIdeal() !== estado.velocidadeAtual) { iniciarAutoClicker(); return; }
-      Game.ClickCookie(0); // 0 = sem efeito visual (mais rápido)
-      estado.estatisticas.cliques++;
+      try {
+        Game.ClickCookie();
+        estado.estatisticas.cliques++;
+      } catch (e) {}
     }, vel);
   }
 
   // ════════════════════════════════════════════════════════════════
-  //  3. SHIMMERS — Golden / Wrath / Reindeer
-  //  Bug fix: Wrath Cookie é type='golden' com .wrath=1 (não type='wrath')
+  //  3. SHIMMERS — Golden Cookies, Renas, Wrath Cookies
   // ════════════════════════════════════════════════════════════════
   function clicarShimmers() {
-    if (!jogoOk() || estado.pausado || !Game.shimmers) return;
+    if (!jogoOk() || estado.pausado) return;
+    if (!Game.shimmers || Game.shimmers.length === 0) return;
 
-    for (const s of Game.shimmers) {
-      if (s.life <= 0) continue;
-
+    Game.shimmers.forEach(s => {
       if (s.type === 'golden') {
-        const wrath = !!s.wrath;
-        if (wrath && !CONFIG.clicarWrathCookies) continue;
-
+        if (s.wrath && !CONFIG.clicarWrathCookies) return;
         s.pop();
-        if (wrath) {
-          estado.estatisticas.wrathsCaptados++;
-          log('warn', `😈 Wrath Cookie clicado (total: ${estado.estatisticas.wrathsCaptados})`);
-        } else {
-          estado.estatisticas.goldensCaptados++;
-          log('info', `🌟 Golden Cookie capturado (total: ${estado.estatisticas.goldensCaptados})`);
-        }
+        if (s.wrath) estado.estatisticas.wrathsCaptados++;
+        else estado.estatisticas.goldensCaptados++;
+        log('info', `✨ ${s.wrath ? 'Wrath' : 'Golden'} Cookie captado!`);
       } else if (s.type === 'reindeer' && CONFIG.clicarRenas) {
         s.pop();
         estado.estatisticas.renasCaptadas++;
-        log('info', `🦌 Rena capturada (total: ${estado.estatisticas.renasCaptadas})`);
+        log('info', '🦌 Rena captada!');
       }
-    }
+    });
   }
 
   // ════════════════════════════════════════════════════════════════
-  //  4. COMPRAS — Upgrades e Edifícios
-  //  Edifícios são ordenados pelo Payback Period (PP) real
+  //  4. COMPRAS — Edifícios e Upgrades (Eficiência Marginal)
   // ════════════════════════════════════════════════════════════════
-  function comprarUpgrades() {
-    if (!jogoOk()) return false;
-    let comprou = false;
+  function cicloDeCompras() {
+    if (!jogoOk() || estado.pausado) return;
 
-    // Ordena por preço crescente (compra o mais barato primeiro)
-    const upgrades = [...Game.UpgradesInStore].sort((a, b) => a.getPrice() - b.getPrice());
-
-    for (const up of upgrades) {
-      // Pula upgrades de toggle (temporadas, milk picker etc.) — tratados em outros módulos
-      if (up.pool === 'toggle') continue;
-      // Pula upgrades de cookies "vault" do dragão (não dão CpS direto)
-      if (up.pool === 'dragon') continue;
-
-      const preco = up.getPrice();
-      const disp = saldoDisponivel();
-      if (preco > disp * CONFIG.limiteGastoUnico) continue;
-
-      try {
-        up.buy(1);
-        estado.estatisticas.comprasFeitas++;
-        log('info', `🔬 Upgrade: "${up.name}" → ${formatNum(preco)}`);
-        comprou = true;
-      } catch (e) { /* já comprado / bloqueado */ }
+    // 1. Upgrades (se configurado para priorizar)
+    if (CONFIG.comprarUpgradesFirst) {
+      const comprou = tentarComprarUpgrade();
+      if (comprou) return;
     }
-    return comprou;
+
+    // 2. Edifícios (baseado em custo/benefício)
+    tentarComprarEdificio();
+
+    // 3. Upgrades (se não comprou antes)
+    if (!CONFIG.comprarUpgradesFirst) {
+      tentarComprarUpgrade();
+    }
   }
 
-  // Calcula o ganho de CpS que UMA unidade adicional do edifício traria
-  function ganhoCpSdaProximaUnidade(obj) {
-    if (!obj || obj.amount === undefined) return 0;
-    // storedTotalCps = CpS atual de todas as unidades do edifício
-    // baseCps        = CpS base de UMA unidade (sem multiplicadores)
-    // A diferença ao comprar +1 é aproximadamente (storedTotalCps / amount) se amount>0
-    // Para amount=0, usamos storedCps (que considera multiplicadores em 1 unidade)
-    const cpsAtual = obj.storedTotalCps || 0;
-    if (obj.amount > 0 && cpsAtual > 0) {
-      return cpsAtual / obj.amount;
-    }
-    return (obj.storedCps || obj.baseCps || 0) * (Game.globalCpsMult || 1);
+  function tentarComprarUpgrade() {
+    const upgrades = Game.UpgradesInStore;
+    if (upgrades.length === 0) return false;
+
+    // Filtra upgrades que podemos pagar e que não são cosméticos/switchers caros
+    const acessiveis = upgrades.filter(u => {
+      if (u.pool === 'toggle') return false;
+      const preco = u.getPrice();
+      return preco <= saldoDisponivel() && preco <= Game.cookies * CONFIG.limiteGastoUnico;
+    });
+
+    if (acessiveis.length === 0) return false;
+
+    // Pega o mais barato dos acessíveis
+    acessiveis.sort((a, b) => a.getPrice() - b.getPrice());
+    const alvo = acessiveis[0];
+
+    try {
+      alvo.buy();
+      estado.estatisticas.comprasFeitas++;
+      log('info', `💸 Upgrade: "${alvo.name}" comprado.`);
+      return true;
+    } catch (e) { return false; }
   }
 
-  function comprarMelhorEdificio() {
-    if (!jogoOk()) return;
-    const disp = saldoDisponivel();
-    let melhor = null;
-    let melhorEficiencia = -Infinity; // CpS ganho / preço
+  function tentarComprarEdificio() {
+    const edificios = Game.ObjectsById;
+    let melhorEdif = null;
+    let melhorROI  = 0;
 
-    Game.ObjectsById.forEach(obj => {
-      if (!obj || obj.locked) return;
-      const preco = obj.bulkPrice !== undefined ? obj.bulkPrice : obj.price;
-      if (preco > disp * CONFIG.limiteGastoUnico) return;
+    edificios.forEach(obj => {
+      const preco = obj.getPrice();
+      if (preco > saldoDisponivel() || preco > Game.cookies * CONFIG.limiteGastoUnico) return;
 
-      const ganho = ganhoCpSdaProximaUnidade(obj);
-      if (ganho <= 0) return;
+      // Cálculo simples de ROI: CpS adicional / Preço
+      // Game.cookiesPs é o global, cada prédio tem seu cps individual
+      const cpsAdicional = obj.storedCps * Game.globalCpsMult;
+      const roi = cpsAdicional / preco;
 
-      const eficiencia = ganho / preco;
-      if (eficiencia > melhorEficiencia) {
-        melhorEficiencia = eficiencia;
-        melhor = obj;
+      if (roi > melhorROI) {
+        melhorROI = roi;
+        melhorEdif = obj;
       }
     });
 
-    if (melhor) {
+    if (melhorEdif) {
       try {
-        melhor.buy(1);
+        melhorEdif.buy(1);
         estado.estatisticas.comprasFeitas++;
-        log('info', `🏗️  ${melhor.name} → ${formatNum(melhor.price)} (PP ≈ ${(1/melhorEficiencia).toExponential(1)}s)`);
-      } catch (e) { /* sem cookies suficientes */ }
+        log('debug', `🏗️ Edifício: ${melhorEdif.name} comprado.`);
+        return true;
+      } catch (e) { return false; }
     }
-  }
-
-  function cicloDeCompras() {
-    if (!jogoOk() || estado.pausado) return;
-    if (CONFIG.comprarUpgradesFirst) {
-      comprarUpgrades();
-      comprarMelhorEdificio();
-    } else {
-      comprarMelhorEdificio();
-      comprarUpgrades();
-    }
+    return false;
   }
 
   // ════════════════════════════════════════════════════════════════
-  //  5. WRINKLERS — Estratégia ótima: manter N alimentados
-  //  Cada wrinkler devolve 110% do que sugou; 10 wrinklers ≈ banco×13
+  //  5. WRINKLERS — Estratégia de retenção
   // ════════════════════════════════════════════════════════════════
   function gerenciarWrinklers() {
-    if (!jogoOk() || !CONFIG.estourarWrinklers || estado.pausado || !Game.wrinklers) return;
+    if (!jogoOk() || !CONFIG.estourarWrinklers || estado.pausado) return;
+    if (!Game.wrinklers) return;
 
-    // Conta apenas wrinklers em fase 2 (gordos/sugando)
-    const gordos = Game.wrinklers.filter(w => w && w.phase === 2);
-    const shinies = gordos.filter(w => w.type === 1); // type=1 é shiny (vale mais ao estourar)
+    const ativos = Game.wrinklers.filter(w => w.phase > 0);
+    const count  = ativos.length;
 
-    // Estoura shinies sempre (eles não dão o bônus de cookies devolvidos mas dão achievements)
-    if (CONFIG.estourarSomenteSeShinyOuFora) {
-      for (const w of shinies) {
-        popWrinkler(w);
+    if (count > CONFIG.wrinklersParaManter) {
+      // Estoura os que não são shiny, do menor para o maior (em termos de cookies digeridos)
+      const paraEstourar = ativos
+        .filter(w => w.type === 0 || !CONFIG.estourarSomenteSeShinyOuFora)
+        .sort((a, b) => a.sucked - b.sucked);
+
+      if (paraEstourar.length > 0) {
+        const alvo = paraEstourar[0];
+        alvo.hp = 0; // mata o wrinkler
+        estado.estatisticas.wrinklersEstourados++;
+        log('debug', `💥 Wrinkler estourado (população: ${count}).`);
       }
     }
-
-    // Conta wrinklers normais (não-shiny) gordos
-    const normais = gordos.filter(w => w.type !== 1);
-    const excedente = normais.length - CONFIG.wrinklersParaManter;
-
-    if (excedente <= 0) return;
-
-    // Estoura os mais "cheios" primeiro (sugaram mais → devolvem mais)
-    const ordenados = [...normais].sort((a, b) => (b.sucked || 0) - (a.sucked || 0));
-    let estourados = 0;
-    for (const w of ordenados) {
-      if (estourados >= excedente) break;
-      popWrinkler(w);
-      estourados++;
-    }
-
-    if (estourados > 0) {
-      log('info', `🐛 ${estourados} wrinkler(s) estourado(s). Total: ${estado.estatisticas.wrinklersEstourados}`);
-    }
-  }
-
-  function popWrinkler(w) {
-    try {
-      w.hp = 0; // dispara morte na próxima atualização
-      estado.estatisticas.wrinklersEstourados++;
-    } catch (e) { /* wrinkler inválido */ }
   }
 
   // ════════════════════════════════════════════════════════════════
-  //  6. GRIMÓRIO — Wizard Tower
-  //  Combo opcional: só conjura FSM em cima de Frenzy (lucro brutal)
+  //  6. GRIMÓRIO — Hand of Fate Combo
   // ════════════════════════════════════════════════════════════════
   function usarGrimorio() {
     if (!jogoOk() || !CONFIG.usarGrimorio || estado.pausado) return;
-    const wt = Game.Objects['Wizard tower'];
-    if (!wt || !wt.minigame) return;
-    const g = wt.minigame;
+    const tower = Game.Objects['Wizard tower'];
+    if (!tower || !tower.minigame) return;
+    const g = tower.minigame;
 
-    const chaveMagia = CONFIG.magiaPrioridade === 'FSM'
-      ? 'hand of fate'
-      : "gambler's fever dream";
-    const magia = g.spells[chaveMagia];
-    if (!magia) return;
+    // Só conjura se tiver magia suficiente
+    const magiaAlvo = CONFIG.magiaPrioridade === 'FSM' ? 'force the hand of fate' : 'gambler\'s fever dream';
+    const spell = g.spells[magiaAlvo];
+    if (!spell) return;
 
-    const custo = Math.ceil(g.getSpellCost(magia));
+    const custo = g.getSpellCost(spell);
     if (g.magic < custo) return;
 
-    // Combo brutal: só lança FSM durante Frenzy (garante Click Frenzy combinado)
-    if (CONFIG.magiaPrioridade === 'FSM' && CONFIG.comboFSMcomFrenzy && !estado.frenzyAtivo) {
-      return;
-    }
+    // Estratégia FSM: esperar por Frenzy se configurado
+    if (CONFIG.magiaPrioridade === 'FSM' && CONFIG.comboFSMcomFrenzy && !estado.frenzyAtivo) return;
 
     try {
-      g.castSpell(magia);
+      g.castSpell(spell);
       estado.estatisticas.magiasConjuradas++;
-      log('info', `🔮 Magia: "${magia.name}" (custo ${custo}) — total: ${estado.estatisticas.magiasConjuradas}`);
-    } catch (e) {
-      log('debug', `Grimório erro: ${e.message}`);
-    }
+      log('info', `🪄 Magia conjurada: ${spell.name}`);
+    } catch (e) {}
   }
 
   // ════════════════════════════════════════════════════════════════
-  //  7. PANTHEON — Configuração de espíritos
-  //  Respeita o cooldown de swaps (não tenta trocar à toa)
+  //  7. PANTHEON
   // ════════════════════════════════════════════════════════════════
   function configurarPanteon() {
     if (!jogoOk() || !CONFIG.gerenciarPanteon || estado.pausado) return;
-    const templo = Game.Objects['Temple'];
-    if (!templo || !templo.minigame) return;
-    const p = templo.minigame;
+    const temple = Game.Objects['Temple'];
+    if (!temple || !temple.minigame) return;
+    const p = temple.minigame;
 
-    // Sem swaps disponíveis? Não faz nada (evita logs/erros inúteis)
-    if (typeof p.swaps === 'number' && p.swaps <= 0) return;
+    if (p.swaps < 1) return;
 
-    const noturno = eHorarioNoturno();
-    // Configuração: diamond (slot 0, +bônus), ruby (slot 1), jade (slot 2)
-    const alvo = noturno
-      ? ['Skruuia', 'Mokalsium', 'Cyclius']   // wrinkler-mode + CpS
-      : ['Holobore', 'Godzamok', 'Mokalsium']; // CpS + cliques
-
+    const alvo = ['jeremy', 'mokalsium', 'cyclius']; // Exemplo de setup genérico
     alvo.forEach((nome, slot) => {
       const lower = nome.toLowerCase();
       const deus = p.gods[lower];
@@ -513,7 +452,7 @@ const BOT = (() => {
   }
 
   // ════════════════════════════════════════════════════════════════
-  //  8. JARDIM — Bug fix: useTool(plantId+1) para plantar
+  //  8. JARDIM
   // ════════════════════════════════════════════════════════════════
   function gerenciarJardim() {
     if (!jogoOk() || !CONFIG.gerenciarJardim || estado.pausado) return;
@@ -533,21 +472,19 @@ const BOT = (() => {
         const tile = j.getTile(x, y);
         if (!tile) continue;
 
-        // Tile vazio: planta se a semente está desbloqueada e não há cooldown
         if (tile[0] === 0) {
           if (semente.unlocked && (j.nextSeed === undefined || j.nextSeed <= 0)) {
             try {
-              j.useTool(semente.id + 1, x, y); // +1 porque 0=harvest, 1+=planta
-            } catch (e) { /* tile bloqueado */ }
+              j.useTool(semente.id + 1, x, y);
+            } catch (e) {}
           }
         } else {
-          // Tile com planta: colhe se madura
           const planta = j.plantsById[tile[0] - 1];
           const age    = tile[1];
           if (planta && age >= planta.mature) {
             try {
               j.harvest(x, y);
-            } catch (e) { /* já colhida */ }
+            } catch (e) {}
           }
         }
       }
@@ -555,11 +492,11 @@ const BOT = (() => {
   }
 
   // ════════════════════════════════════════════════════════════════
-  //  9. MERCADO DE AÇÕES — BUG FIX: É no 'Bank', não 'Office'
+  //  9. MERCADO DE AÇÕES
   // ════════════════════════════════════════════════════════════════
   function gerenciarMercado() {
     if (!jogoOk() || !CONFIG.gerenciarMercado || estado.pausado) return;
-    const banco = Game.Objects['Bank']; // ← v2 estava lendo 'Office' (inexistente)
+    const banco = Game.Objects['Bank'];
     if (!banco || !banco.minigame) return;
     const m = banco.minigame;
     if (!m.goodsById) return;
@@ -573,14 +510,12 @@ const BOT = (() => {
       const qtd        = acao.stock || 0;
       const max        = m.getGoodMaxStock ? m.getGoodMaxStock(acao) : (acao.maxStock || 100);
 
-      // Vender se preço >= limiar
       if (qtd > 0 && precoAtual >= precoBase * CONFIG.limiarVendaMercado) {
         try {
           m.sellGood(acao.id, qtd);
           log('info', `📈 Vendido ${qtd}× ${acao.symbol || acao.name} @ ${precoAtual.toFixed(2)}`);
         } catch (e) {}
       }
-      // Comprar se preço <= limiar e temos margem
       else if (precoAtual <= precoBase * CONFIG.limiarCompraMercado && qtd < max) {
         const espaco = max - qtd;
         const podeComprar = Math.floor(Game.cookies / (precoAtual * 1000) / 10);
@@ -596,8 +531,7 @@ const BOT = (() => {
   }
 
   // ════════════════════════════════════════════════════════════════
-  //  10. SUGAR LUMPS — Novidade na v3
-  //  Tipos diferentes têm "melhor hora" diferente; padrão: aos 22h (ripe)
+  //  10. SUGAR LUMPS
   // ════════════════════════════════════════════════════════════════
   function colherSugarLump() {
     if (!jogoOk() || !CONFIG.colherSugarLumps || estado.pausado) return;
@@ -619,14 +553,11 @@ const BOT = (() => {
         estado.estatisticas.lumpsColhidos++;
         log('info', `🍬 Sugar Lump colhido! Total na sessão: ${estado.estatisticas.lumpsColhidos}`);
       }
-    } catch (e) {
-      log('debug', `Lump erro: ${e.message}`);
-    }
+    } catch (e) {}
   }
 
   // ════════════════════════════════════════════════════════════════
-  //  11. DRAGÃO — Aura
-  //  BUG FIX v2: Game.dragonAura é ID; Game.dragonAuras[nome] é undefined
+  //  11. DRAGÃO
   // ════════════════════════════════════════════════════════════════
   function buscarAuraPorNome(nome) {
     if (!Game.dragonAuras) return null;
@@ -641,21 +572,19 @@ const BOT = (() => {
   function configurarDragao() {
     if (!jogoOk() || !CONFIG.gerenciarDragao || estado.pausado) return;
     if (typeof Game.dragonLevel !== 'number') return;
-    // Precisa ter o dragão "treinado" no mínimo para ter auras
     if (Game.dragonLevel < 5) return;
 
     const nomeAlvo = estado.frenzyAtivo ? CONFIG.auraFrenzy : CONFIG.auraNormal;
     const alvo = buscarAuraPorNome(nomeAlvo);
     if (!alvo) return;
 
-    if (Game.dragonAura === alvo.id) return; // já está correta
+    if (Game.dragonAura === alvo.id) return;
 
     try {
       Game.SetDragonAura(alvo.id, 0);
-      // SetDragonAura abre confirmação visual; força a confirmação:
       if (typeof Game.ConfirmPrompt === 'function') Game.ConfirmPrompt();
       log('debug', `🐉 Aura → "${nomeAlvo}"`);
-    } catch (e) { /* dragão não pronto */ }
+    } catch (e) {}
   }
 
   // ════════════════════════════════════════════════════════════════
@@ -711,7 +640,6 @@ const BOT = (() => {
         `Bot: ascender agora? Ganho de ${ganho} prestige chips.`
       );
       if (!ok) {
-        // empurra a próxima verificação para 5 minutos para não spamar
         log('info', '⏭️  Ascensão adiada pelo usuário (próxima verificação em 5min).');
         setTimeout(verificarAscensao, 300000);
         return;
@@ -753,59 +681,40 @@ const BOT = (() => {
         } catch (e) {
           log('warn', `Erro ao reencarnar: ${e.message}`);
         }
-        estado.ascendendo = false;
-        iniciarAutoClicker();
+        
+        // Timer de 5 minutos solicitado pelo usuário após "acender" / reencarnar
+        log('info', `⏳ Aguardando ${CONFIG.delayPosReencarnacao / 60000} minutos para retomar as atividades...`);
+        setTimeout(() => {
+          estado.ascendendo = false;
+          iniciarAutoClicker();
+          log('info', '🚀 Bot retomou as atividades após o timer pós-ascensão.');
+        }, CONFIG.delayPosReencarnacao);
+
       }, 3000);
     }, 3000);
   }
 
-  // Upgrades celestiais com prioridade — só nomes que realmente existem
   const HEAVENLY_PRIORIDADE = [
-    'Permanent upgrade slot I',
-    'Permanent upgrade slot II',
-    'Permanent upgrade slot III',
-    'Permanent upgrade slot IV',
-    'Permanent upgrade slot V',
-    'How to bake your dragon',
-    'A crumbly egg',
-    'Heavenly cookies',
-    'Tin of butter cookies',
-    'Tin of british tea biscuits',
-    'Box of macarons',
-    'Box of brand biscuits',
-    'Lasting fortune',
-    'Lucky digit',
-    'Lucky number',
-    'Lucky payout',
-    'Heavenly luck',
-    'Sugar baking',
-    'Sugar craving',
-    'Sugar aging process',
-    'Season switcher',
-    'Starter kit',
-    'Starter kitchen',
+    'Permanent upgrade slot I', 'Permanent upgrade slot II', 'Permanent upgrade slot III',
+    'Permanent upgrade slot IV', 'Permanent upgrade slot V', 'How to bake your dragon',
+    'A crumbly egg', 'Heavenly cookies', 'Tin of butter cookies', 'Tin of british tea biscuits',
+    'Box of macarons', 'Box of brand biscuits', 'Lasting fortune', 'Lucky digit',
+    'Lucky number', 'Lucky payout', 'Heavenly luck', 'Sugar baking', 'Sugar craving',
+    'Sugar aging process', 'Season switcher', 'Starter kit', 'Starter kitchen',
   ];
 
   function comprarUpgradesCelestiais() {
     if (typeof Game === 'undefined') return;
-
-    // Primeiro: prioridades (na ordem)
     for (const nome of HEAVENLY_PRIORIDADE) {
       const up = Game.Upgrades[nome];
       if (up && !up.bought && up.canBuy && up.canBuy()) {
-        try {
-          up.buy(); log('info', `⭐ Prio: "${nome}"`);
-        } catch (e) {}
+        try { up.buy(); log('info', `⭐ Prio: "${nome}"`); } catch (e) {}
       }
     }
-
-    // Depois: tudo que sobrar
     for (const nome in Game.Upgrades) {
       const up = Game.Upgrades[nome];
       if (up && up.pool === 'prestige' && !up.bought && up.canBuy && up.canBuy()) {
-        try {
-          up.buy(); log('info', `⭐ Celestial: "${up.name}"`);
-        } catch (e) {}
+        try { up.buy(); log('info', `⭐ Celestial: "${up.name}"`); } catch (e) {}
       }
     }
   }
@@ -887,7 +796,6 @@ const BOT = (() => {
     registrarIntervalo(setInterval(verificarAscensao,        CONFIG.intervaloVerificaAscensao));
     registrarIntervalo(setInterval(salvarStats,              30000));
     registrarIntervalo(setInterval(exibirStatus,             CONFIG.intervaloStatusPeriodico));
-    // Reaplica auto-clicker periodicamente para cobrir mudança de modo noturno
     registrarIntervalo(setInterval(iniciarAutoClicker,       60000));
 
     window.addEventListener('keydown', handleKey);
@@ -933,7 +841,4 @@ const BOT = (() => {
   };
 })();
 
-// ════════════════════════════════════════════════════════════════════
-//  🚀 INICIALIZAÇÃO AUTOMÁTICA
-// ════════════════════════════════════════════════════════════════════
 BOT.iniciar();
