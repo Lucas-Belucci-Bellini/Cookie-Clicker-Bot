@@ -25,6 +25,47 @@ CookieBotV6.config({
 })
 ```
 
+## V6.11 — Health + Telemetry
+
+A V6.11 adiciona uma camada de saúde operacional e telemetria ao Scheduler.
+
+### Health
+
+Cada tarefa do Scheduler passa a registrar:
+
+- última execução;
+- última execução bem-sucedida;
+- quantidade de execuções;
+- falhas consecutivas;
+- duração aproximada;
+- idade desde a última execução;
+- estado `HEALTHY`, `DEGRADED`, `STALE` ou `UNKNOWN`.
+
+APIs:
+
+`taskHealthSnapshot()`
+`healthSummary()`
+`healthHistory()`
+`clearHealthHistory()`
+`healthCycle()`
+
+A saúde também aparece no diagnóstico do módulo e pode ser consultada pelo Scheduler.
+
+### Telemetry
+
+A V6.11 mantém histórico limitado de snapshots de saúde para permitir observar a evolução do bot sem criar armazenamento infinito.
+
+Configuração:
+
+```js
+CookieBotV6.config({
+  healthEnabled: true,
+  healthHistoryMaxEntries: 96
+})
+```
+
+Métricas adicionais incluem `healthChecks` e `healthRecoveries`.
+
 ## V6.10 — Scheduler + Watchdog
 
 A V6.10 substitui a coordenação dos módulos por um **Scheduler centralizado**, mantendo o clique rápido em timer separado.
