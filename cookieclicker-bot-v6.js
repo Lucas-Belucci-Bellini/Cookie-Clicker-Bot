@@ -1333,19 +1333,30 @@
   function runScheduledTask(task, now, recovery = false) {
     const started = performance.now();
     try {
-      task.handler();
+      const result = task.handler();
       const duration = performance.now() - started;
+      const failed = result === false;
       state.taskLastRun.set(task.name, now);
+      state.taskRunCount.set(task.name, (state.taskRunCount.get(task.name) || 0) + 1);
+      state.taskDurationMs.set(task.name, duration);
+      if (failed) {
+        const failures = (state.taskFailures.get(task.name) || 0) + 1;
+        state.taskFailures.set(task.name, failures);
+        state.taskHealth.set(task.name, 'DEGRADED');
+        state.stats.errors++;
+        log('warn', 'Tarefa retornou false: ' + task.name);
+        return { ok: false, failures, duration };
+      }
       state.taskFailures.set(task.name, 0);
       state.taskLastSuccess.set(task.name, now);
-      state.taskDurationMs.set(task.name, duration);
-      state.taskRunCount.set(task.name, (state.taskRunCount.get(task.name) || 0) + 1);
+      state.taskHealth.set(task.name, 'HEALTHY');
       if (recovery) log('warn', 'Watchdog recuperou: ' + task.name);
       return { ok: true, duration };
     } catch (error) {
       const failures = (state.taskFailures.get(task.name) || 0) + 1;
       state.taskLastRun.set(task.name, now);
       state.taskFailures.set(task.name, failures);
+      state.taskHealth.set(task.name, 'FAILED');
       state.stats.errors++;
       log('error', 'Falha na tarefa ' + task.name, error);
       return { ok: false, failures };
@@ -1368,9 +1379,11 @@
 
   function watchdogTick() {
     if (!state.active || state.paused) return;
+    const transitionActive = state.ascensionPhase !== 'READY';
     const now = Date.now();
     const grace = Math.max(5000, Number(CONFIG.watchdogGraceMs) || 15000);
     for (const task of state.schedulerTasks.values()) {
+      if (transitionActive && !['health', 'status', 'upgradeObservations'].includes(task.name)) continue;
       const last = state.taskLastRun.get(task.name) || 0;
       if (now - last > task.intervalMs + grace) {
         state.stats.watchdogRestarts = (state.stats.watchdogRestarts || 0) + 1;
