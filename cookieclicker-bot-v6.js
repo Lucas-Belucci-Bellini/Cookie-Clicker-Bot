@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.6.0';
+  const VERSION = '6.7.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -31,6 +31,9 @@
     buyHeavenlyUpgrades: true,
     prestigeThreshold: 100,
     postAscensionDelayMs: 4000,
+    ascensionMinGainRatio: 0.05,
+    ascensionMaxRecoverySeconds: 21600,
+    ascensionRecoverySafetyFactor: 3,
 
     // Estourar wrinklers por padrão também fica desligado.
     popWrinklers: false,
@@ -62,6 +65,9 @@
     marketSellThreshold: 0,
     marketMaxSpendRatio: 0.10,
     pantheon: false,
+    pantheonEnabled: false,
+    pantheonSlot: 0,
+    pantheonGod: '',
     dragon: false,
 
     logging: true
@@ -95,6 +101,7 @@
       gardenPlantings: 0,
       marketBuys: 0,
       marketSells: 0,
+      pantheonChanges: 0,
       errors: 0,
       ticks: 0
     }
@@ -308,15 +315,18 @@
   }
 
   function economicScoreUpgrade(upgrade) {
-    if (!upgrade || typeof upgrade.buy !== 'function') return 0;
+    if (!upgrade || upgrade.bought || typeof upgrade.buy !== 'function') return 0;
     const price = safe(() => Number(upgrade.getPrice()), Infinity, 'preço de upgrade inválido');
     if (!Number.isFinite(price) || price <= 0 || price > economicBudget()) return 0;
 
-    // Upgrades nem sempre expõem ganho numérico; nesse caso recebem um valor conservador,
-    // mas continuam competindo com edifícios em vez de dominarem a economia.
-    const value = Number(upgrade.cps || upgrade.cpsMult || upgrade.power || 1);
-    return economicEfficiency(price, Math.max(1, value), price / Math.max(1, value)) *
-      Number(CONFIG.upgradeValueWeight || 1);
+    const profile = upgradeStatProfile(upgrade);
+    const value = Math.max(0.000001, Number(profile?.utilityScore || 0));
+    const payback = price / value;
+    const affordability = Math.max(0, Math.min(1, economicBudget() / price));
+
+    return economicEfficiency(price, value, payback) *
+      Number(CONFIG.upgradeValueWeight || 1) *
+      affordability;
   }
 
   function chooseEconomicAction() {
@@ -585,9 +595,120 @@
     }, 0, 'prestígio falhou');
   }
 
+  function ascensionAnalysis() {
+    if (!gameReady()) {
+      return {
+        worthIt: false,
+        reason: 'jogo não está pronto',
+        currentPrestige: 0,
+        potentialPrestige: 0,
+        gain: 0,
+        gainRatio: 0,
+        currentMultiplier: 1,
+        projectedMultiplier: 1,
+        multiplierGainPercent: 0,
+        recoverySeconds: Infinity,
+        estimatedPaybackSeconds: Infinity
+      };
+    }
+
+    const currentPrestige = Math.max(0, Number(Game.prestige || 0));
+    const gain = Math.max(0, prestigeGain());
+    const potentialPrestige = currentPrestige + gain;
+    const currentMultiplier = 1 + currentPrestige / 100;
+    const projectedMultiplier = 1 + potentialPrestige / 100;
+    const multiplierGainPercent = currentMultiplier > 0
+      ? ((projectedMultiplier / currentMultiplier) - 1) * 100
+      : 0;
+
+    const bank = Math.max(0, cookies());
+    const currentCps = Math.max(0, cps());
+    const safetyFactor = Math.max(1, Number(CONFIG.ascensionRecoverySafetyFactor) || 3);
+    const recoverySeconds = currentCps > 0 ? (bank / currentCps) * safetyFactor : Infinity;
+    const multiplierGain = Math.max(0, projectedMultiplier - currentMultiplier);
+    const estimatedPaybackSeconds = multiplierGain > 0 && currentCps > 0
+      ? recoverySeconds / multiplierGain
+      : Infinity;
+
+    const minGainRatio = Math.max(0, Number(CONFIG.ascensionMinGainRatio) || 0);
+    const gainRatio = currentPrestige > 0 ? gain / currentPrestige : Infinity;
+    const maxRecovery = Math.max(0, Number(CONFIG.ascensionMaxRecoverySeconds) || 0);
+    const threshold = Math.max(0, Number(CONFIG.prestigeThreshold) || 0);
+
+    const enoughPrestige = gain >= threshold;
+    const meaningfulGain = currentPrestige === 0 || gainRatio >= minGainRatio;
+    const recoverable = recoverySeconds <= maxRecovery;
+    const worthIt = enoughPrestige && meaningfulGain && recoverable;
+
+    let reason = 'ascensão não compensa neste momento';
+    if (!enoughPrestige) reason = 'ganho de prestígio abaixo do limite';
+    else if (!meaningfulGain) reason = 'ganho percentual de prestígio pequeno';
+    else if (!recoverable) reason = 'tempo estimado de recuperação muito alto';
+    else reason = 'ganho permanente supera o custo estimado de recuperação';
+
+    return {
+      worthIt,
+      reason,
+      currentPrestige,
+      potentialPrestige,
+      gain,
+      gainRatio,
+      currentMultiplier,
+      projectedMultiplier,
+      multiplierGainPercent,
+      recoverySeconds,
+      estimatedPaybackSeconds
+    };
+  }
+
+  function upgradeStatProfile(upgrade) {
+    if (!upgrade) return null;
+
+    const desc = String(upgrade.desc || '').toLowerCase();
+    const name = String(upgrade.name || '').toLowerCase();
+    const text = desc + ' ' + name;
+
+    const directCps = Number(upgrade.cps || 0);
+    const cpsMultiplier = Number(upgrade.cpsMult || upgrade.cpsMultPercent || 0);
+    const clickValue = Number(upgrade.click || upgrade.clickCps || 0);
+    const clickMultiplier = Number(upgrade.clickMult || 0);
+
+    const keywordSignals = {
+      cps: /(cookies per second|cookie production|cps|cookies\/second)/i.test(text) ? 1 : 0,
+      click: /(click|clique)/i.test(text) ? 1 : 0,
+      multiplier: /(\+|increase|multipl|%)/i.test(text) ? 1 : 0,
+      building: /(building|edifício|grandma|farm|mine|factory|bank|temple|wizard|shipment|alchemy|portal|time machine|antimatter|prism|chancemaker|fractal|javascript|you)/i.test(text) ? 1 : 0,
+      kitten: /kitten|milk/i.test(text) ? 1 : 0
+    };
+
+    const estimatedCpsGain =
+      Math.max(0, directCps) +
+      Math.max(0, cpsMultiplier) * Math.max(1, cps()) +
+      keywordSignals.cps * Math.max(1, cps() * 0.05) +
+      keywordSignals.multiplier * Math.max(0, cps() * 0.02) +
+      keywordSignals.kitten * Math.max(0, cps() * 0.05);
+
+    const estimatedClickGain =
+      Math.max(0, clickValue) +
+      Math.max(0, clickMultiplier) * Math.max(1, cps() * 0.01) +
+      keywordSignals.click * Math.max(1, cps() * 0.01);
+
+    const utilityScore =
+      estimatedCpsGain * 2 +
+      estimatedClickGain +
+      keywordSignals.building * Math.max(1, cps() * 0.01);
+
+    return {
+      estimatedCpsGain,
+      estimatedClickGain,
+      utilityScore,
+      signals: keywordSignals
+    };
+  }
+
   function shouldAscend() {
-    return CONFIG.autoAscend && !state.ascending && !isPaused() &&
-      prestigeGain() >= Math.max(0, Number(CONFIG.prestigeThreshold));
+    const analysis = ascensionAnalysis();
+    return CONFIG.autoAscend && !state.ascending && !isPaused() && analysis.worthIt;
   }
 
   function buyHeavenlyUpgrades() {
@@ -648,12 +769,72 @@
       });
 
       log('info', 'Ascensão executada com +' + String(gain) + ' prestígio.');
+      if (!CONFIG.autoReincarnate || typeof Game.Reincarnate !== 'function') {
+        state.active = false;
+        state.paused = true;
+        clearAllTimers();
+        state.ascending = false;
+        log('warn', 'Ascensão concluída; bot pausado porque autoReincarnate está desativado.');
+        return true;
+      }
+
       return true;
     }, false, 'ascensão falhou');
   }
 
   function tryAscend() {
     return performAscension();
+  }
+
+  function pantheonMinigame() {
+    const temple = Game && Game.ObjectsById && Game.ObjectsById[13];
+    return temple && temple.minigame ? temple.minigame : null;
+  }
+
+  function pantheonGods(minigame) {
+    if (!minigame) return [];
+    const source = minigame.godsById || minigame.gods;
+    if (!source) return [];
+    if (Array.isArray(source)) return source.filter(Boolean);
+    return Object.keys(source).map(key => source[key]).filter(Boolean);
+  }
+
+  function findPantheonGod(minigame) {
+    const requested = String(CONFIG.pantheonGod || '').trim().toLowerCase();
+    if (!requested) return null;
+    return pantheonGods(minigame).find(god =>
+      String(god.name || '').toLowerCase() === requested
+    ) || pantheonGods(minigame).find(god =>
+      String(god.name || '').toLowerCase().includes(requested)
+    ) || null;
+  }
+
+  function managePantheon() {
+    if (!CONFIG.pantheonEnabled || isPaused() || !gameReady()) return false;
+    const temple = pantheonMinigame();
+    if (!temple || typeof temple.slotGod !== 'function') return false;
+
+    const god = findPantheonGod(temple);
+    if (!god) return false;
+
+    const slot = Math.max(0, Math.floor(Number(CONFIG.pantheonSlot) || 0));
+    const current = Array.isArray(temple.slot) ? temple.slot[slot] : null;
+    if (current && (current.id === god.id || current === god)) return false;
+
+    return safe(() => {
+      let result = false;
+      try {
+        result = temple.slotGod(god, slot);
+      } catch (_) {
+        result = temple.slotGod(slot, god.id);
+      }
+      if (result !== false) {
+        state.stats.pantheonChanges++;
+        state.lastAction = 'pantheon:' + String(god.name || god.id);
+        return true;
+      }
+      return false;
+    }, false, 'Pantheon falhou');
   }
 
   function moduleStatus() {
@@ -830,6 +1011,7 @@
     if (CONFIG.grimoireEnabled) addTimer('grimoire', CONFIG.shimmerMs, castGrimoire);
     if (CONFIG.gardenEnabled) addTimer('garden', CONFIG.purchaseMs, gardenCycle);
     if (CONFIG.marketEnabled) addTimer('market', CONFIG.purchaseMs, manageMarket);
+    if (CONFIG.pantheonEnabled) addTimer('pantheon', CONFIG.purchaseMs, managePantheon);
   }
 
   function stop() {
@@ -923,6 +1105,12 @@
       marketMinigame,
       marketGoods,
       manageMarket,
+      pantheonMinigame,
+      pantheonGods,
+      findPantheonGod,
+      managePantheon,
+      ascensionAnalysis,
+      upgradeStatProfile,
       moduleStatus
     };
   }
