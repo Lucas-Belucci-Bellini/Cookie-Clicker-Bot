@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.4.0';
+  const VERSION = '6.5.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -53,6 +53,10 @@
     grimoireEnabled: false,
     grimoireSpell: '',
     grimoireMinMagic: 0,
+    gardenEnabled: false,
+    gardenHarvestMature: true,
+    gardenAutoPlant: false,
+    gardenPlantId: null,
     pantheon: false,
     dragon: false,
 
@@ -83,6 +87,8 @@
       economicNoops: 0,
       historySaves: 0,
       grimoireCasts: 0,
+      gardenHarvests: 0,
+      gardenPlantings: 0,
       errors: 0,
       ticks: 0
     }
@@ -403,6 +409,72 @@
     }, false, 'Grimoire falhou');
   }
 
+
+  function gardenMinigame() {
+    const farm = Game && Game.ObjectsById && Game.ObjectsById[2];
+    return farm && farm.minigame ? farm.minigame : null;
+  }
+
+  function gardenTiles(garden) {
+    if (!garden) return [];
+    if (Array.isArray(garden.plot)) return garden.plot;
+    if (Array.isArray(garden.tiles)) return garden.tiles;
+    return [];
+  }
+
+  function harvestGarden() {
+    if (!CONFIG.gardenEnabled || isPaused() || !gameReady()) return false;
+    const garden = gardenMinigame();
+    if (!garden) return false;
+    const tiles = gardenTiles(garden);
+    let harvested = 0;
+    tiles.forEach((tile, index) => {
+      if (!tile) return;
+      const age = Number(tile.age || 0);
+      const mature = tile.mature === undefined || age >= Number(tile.mature);
+      const occupied = tile.id !== undefined && tile.id !== 0 || tile.plantId;
+      if (!occupied || (CONFIG.gardenHarvestMature && !mature)) return;
+      safe(() => {
+        if (typeof tile.harvest === 'function') tile.harvest();
+        else if (typeof garden.harvest === 'function') garden.harvest(index);
+        else return;
+        harvested++;
+      }, null, 'colheita do Garden falhou');
+    });
+    state.stats.gardenHarvests += harvested;
+    if (harvested) state.lastAction = 'garden:harvest:' + harvested;
+    return harvested > 0;
+  }
+
+  function plantGarden() {
+    if (!CONFIG.gardenEnabled || !CONFIG.gardenAutoPlant || isPaused() || !gameReady()) return false;
+    const garden = gardenMinigame();
+    const plantId = CONFIG.gardenPlantId;
+    if (!garden || plantId === null || plantId === undefined) return false;
+    const tiles = gardenTiles(garden);
+    let planted = 0;
+    tiles.forEach((tile, index) => {
+      const empty = !tile || tile.id === 0 || tile.id === -1 || tile.plantId === 0;
+      if (!empty) return;
+      const ok = safe(() => {
+        if (typeof garden.clickTile === 'function') return garden.clickTile(index, plantId);
+        if (typeof garden.plant === 'function') return garden.plant(index, plantId);
+        return false;
+      }, false, 'plantio do Garden falhou');
+      if (ok !== false) planted++;
+    });
+    state.stats.gardenPlantings += planted;
+    if (planted) state.lastAction = 'garden:plant:' + planted;
+    return planted > 0;
+  }
+
+  function gardenCycle() {
+    if (!CONFIG.gardenEnabled) return false;
+    const harvested = harvestGarden();
+    const planted = plantGarden();
+    return harvested || planted;
+  }
+
   function purchaseCycle() {
     if (isPaused() || !gameReady()) return;
     if (CONFIG.economyEnabled) {
@@ -694,6 +766,7 @@
     addTimer('report', CONFIG.reportMs, report);
     addTimer('economicReport', CONFIG.reportMs, economicReport);
     if (CONFIG.grimoireEnabled) addTimer('grimoire', CONFIG.shimmerMs, castGrimoire);
+    if (CONFIG.gardenEnabled) addTimer('garden', CONFIG.purchaseMs, gardenCycle);
   }
 
   function stop() {
@@ -779,6 +852,11 @@
       grimoireMinigame,
       findGrimoireSpell,
       castGrimoire,
+      gardenMinigame,
+      gardenTiles,
+      harvestGarden,
+      plantGarden,
+      gardenCycle,
       moduleStatus
     };
   }
