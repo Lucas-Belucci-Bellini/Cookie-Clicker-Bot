@@ -602,3 +602,19 @@ Configurações novas:
 Isso deixa explícito que o bot não deve comparar upgrades de CpS e upgrades de clique como se fossem exatamente a mesma coisa.
 
 > Validação: estrutura do código verificada no GitHub. Não houve execução dentro de uma sessão real do Cookie Clicker.
+
+
+## V6.19 — Health separado de Recovery
+
+A V6.19 corrige a semântica da telemetria de saúde.
+
+Antes, detectar uma tarefa como `STALE` incrementava `healthRecoveries` mesmo sem uma recuperação efetivamente executada. Agora:
+
+- `healthStaleDetections` registra detecções de tarefas `STALE`;
+- a recuperação real continua sendo responsabilidade do Watchdog;
+- `healthRecoveries` não é incrementado apenas por detecção;
+- `healthCycle()` informa explicitamente `recoveryOwner: 'watchdog'`.
+
+Isso deixa os números de saúde mais confiáveis para diagnosticar o bot.
+
+> Validação: estrutura do código verificada no GitHub. Não houve execução dentro de uma sessão real do Cookie Clicker.
