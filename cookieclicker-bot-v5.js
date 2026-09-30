@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '5.2.0';
+  const VERSION = '5.3.0';
   const GLOBAL_KEY = '__COOKIE_CLICKER_BOT_V5__';
 
   // ============================================================
@@ -187,6 +187,78 @@
   }
 
   // 10
+  function detectCapabilities() {
+    const gameExists = typeof Game !== 'undefined' && !!Game;
+    const objects = gameExists ? (Game.Objects || {}) : {};
+    const wizard = objects['Wizard tower']?.minigame;
+    const farm = objects.Farm?.minigame;
+    const bank = objects.Bank?.minigame;
+    const temple = objects.Temple?.minigame;
+
+    const report = {
+      shimmers: {
+        supported: gameExists && Array.isArray(Game.shimmers),
+        reason: gameExists && Array.isArray(Game.shimmers) ? 'Game.shimmers disponível' : 'Game.shimmers ausente'
+      },
+      purchases: {
+        supported: gameExists && Array.isArray(Game.ObjectsById),
+        reason: gameExists && Array.isArray(Game.ObjectsById) ? 'Game.ObjectsById disponível' : 'lista de edifícios ausente'
+      },
+      upgrades: {
+        supported: gameExists && Array.isArray(Game.UpgradesInStore),
+        reason: gameExists && Array.isArray(Game.UpgradesInStore) ? 'Game.UpgradesInStore disponível' : 'lista de upgrades ausente'
+      },
+      prestige: {
+        supported: gameExists && typeof Game.HowMuchPrestige === 'function',
+        reason: gameExists && typeof Game.HowMuchPrestige === 'function' ? 'HowMuchPrestige disponível' : 'HowMuchPrestige ausente'
+      },
+      ascension: {
+        supported: gameExists && typeof Game.Ascend === 'function',
+        reason: gameExists && typeof Game.Ascend === 'function' ? 'Game.Ascend disponível' : 'Game.Ascend ausente'
+      },
+      wrinklers: {
+        supported: gameExists && Array.isArray(Game.wrinklers),
+        reason: gameExists && Array.isArray(Game.wrinklers) ? 'Game.wrinklers disponível' : 'Game.wrinklers ausente'
+      },
+      grimoire: {
+        supported: !!wizard && typeof wizard.castSpell === 'function',
+        reason: !wizard ? 'Wizard tower/minigame ausente' : typeof wizard.castSpell === 'function' ? 'castSpell disponível' : 'castSpell ausente'
+      },
+      garden: {
+        supported: !!farm && Array.isArray(farm.plot) && typeof farm.useTool === 'function',
+        reason: !farm ? 'Farm/minigame ausente' : !Array.isArray(farm.plot) ? 'farm.plot ausente' : typeof farm.useTool !== 'function' ? 'farm.useTool ausente' : 'API básica do Garden disponível'
+      },
+      market: {
+        supported: !!bank && !!(bank.goodsById || bank.goods) && (typeof bank.buyGood === 'function' || typeof bank.sellGood === 'function'),
+        reason: !bank ? 'Bank/minigame ausente' : !(bank.goodsById || bank.goods) ? 'lista de goods ausente' : 'API básica do Market disponível'
+      },
+      pantheon: {
+        supported: !!temple && typeof temple.slotGod === 'function',
+        reason: !temple ? 'Temple/minigame ausente' : typeof temple.slotGod === 'function' ? 'slotGod disponível' : 'slotGod ausente'
+      },
+      dragon: {
+        supported: gameExists && Number(Game.dragonLevel || 0) >= 5 && typeof Game.SetDragonAura === 'function' && !!Game.dragonAuras,
+        reason: !gameExists ? 'Game ausente' : Number(Game.dragonLevel || 0) < 5 ? 'nível do dragão abaixo de 5' : typeof Game.SetDragonAura !== 'function' ? 'SetDragonAura ausente' : !Game.dragonAuras ? 'dragonAuras ausente' : 'API de aura disponível'
+      },
+      seasons: {
+        supported: gameExists && typeof Game.startSeason === 'function',
+        reason: gameExists && typeof Game.startSeason === 'function' ? 'startSeason disponível' : 'startSeason ausente'
+      },
+      sugarLumps: {
+        supported: gameExists && (typeof Game.canLumps === 'function' || typeof Game.clickLump === 'function'),
+        reason: !gameExists ? 'Game ausente' : typeof Game.canLumps === 'function' || typeof Game.clickLump === 'function' ? 'API de sugar lumps disponível' : 'API de sugar lumps ausente'
+      }
+    };
+
+    return report;
+  }
+
+  // 11
+  function capability(name) {
+    return !!detectCapabilities()[name]?.supported;
+  }
+
+  // 12
   function clickInterval() {
     if (hasBuff('click frenzy')) return CONFIG.clickFrenzyMs;
     if (hasBuff('elder frenzy')) return CONFIG.clickElderMs;
@@ -194,7 +266,7 @@
     return CONFIG.clickNormalMs;
   }
 
-  // 11
+  // 13
   function startClicker() {
     if (!gameReady()) return;
     if (state.clickTimer) clearInterval(state.clickTimer);
@@ -209,7 +281,7 @@
     }, delay);
   }
 
-  // 12
+  // 14
   function stopClicker() {
     if (state.clickTimer) {
       clearInterval(state.clickTimer);
@@ -226,7 +298,7 @@
     return CONFIG.clickGolden;
   }
 
-  // 14
+  // 16
   function clickShimmers() {
     if (!gameReady() || isPaused() || !Array.isArray(Game.shimmers)) return;
     Game.shimmers.slice().forEach(shimmer => {
@@ -265,7 +337,7 @@
     return price + CONFIG.reserveCookies <= cookies * Math.max(0, Math.min(1, CONFIG.spendingLimit));
   }
 
-  // 18
+  // 20
   function buyBestBuilding() {
     if (!gameReady() || isPaused()) return false;
     let best = null;
@@ -293,7 +365,7 @@
     }, false, 'compra de edifício falhou');
   }
 
-  // 19
+  // 21
   function buyStoreUpgrades() {
     if (!gameReady() || isPaused() || !Array.isArray(Game.UpgradesInStore)) return 0;
     let bought = 0;
@@ -313,14 +385,14 @@
     return bought;
   }
 
-  // 20
+  // 22
   function purchaseCycle() {
     if (!gameReady() || isPaused()) return;
     buyStoreUpgrades();
     buyBestBuilding();
   }
 
-  // 21
+  // 23
   function prestigeGain() {
     if (!gameReady() || typeof Game.HowMuchPrestige !== 'function') return 0;
     return safe(() => {
@@ -331,12 +403,12 @@
     }, 0, 'cálculo de prestígio falhou');
   }
 
-  // 22
+  // 24
   function shouldAscend() {
     return CONFIG.autoAscend && !state.ascending && prestigeGain() >= Math.max(0, CONFIG.prestigeThreshold);
   }
 
-  // 23
+  // 25
   function buyHeavenlyUpgrades() {
     if (!gameReady() || !CONFIG.buyHeavenlyUpgrades) return 0;
     let bought = 0;
@@ -354,7 +426,7 @@
     return bought;
   }
 
-  // 24
+  // 26
   function performAscension() {
     if (!gameReady() || state.ascending || !shouldAscend()) return false;
     state.ascending = true;
@@ -390,13 +462,13 @@
     }, false, 'ascensão falhou');
   }
 
-  // 25
+  // 27
   function countWrinklers() {
     if (!gameReady() || !Array.isArray(Game.wrinklers)) return 0;
     return Game.wrinklers.filter(w => w && w.phase > 0 && Number(w.sucked || 0) > 0).length;
   }
 
-  // 26
+  // 28
   function manageWrinklers() {
     if (!gameReady() || !CONFIG.popWrinklers || isPaused()) return;
     const active = (Game.wrinklers || []).filter(w => w && w.phase > 0 && Number(w.sucked || 0) > 0);
@@ -414,7 +486,7 @@
     }, null, 'wrinkler falhou'));
   }
 
-  // 27
+  // 29
   function castGrimoire() {
     if (!gameReady() || !CONFIG.useGrimoire || isPaused()) return false;
     const tower = Game.Objects?.['Wizard tower'];
@@ -436,7 +508,7 @@
     }, false, 'grimório falhou');
   }
 
-  // 28
+  // 30
   function harvestGarden() {
     if (!gameReady() || !CONFIG.manageGarden || isPaused()) return 0;
     const farm = Game.Objects?.Farm?.minigame;
@@ -468,7 +540,7 @@
     return count;
   }
 
-  // 29
+  // 31
   function plantGarden() {
     if (!gameReady() || !CONFIG.manageGarden || isPaused()) return 0;
     const farm = Game.Objects?.Farm?.minigame;
@@ -495,13 +567,13 @@
     return count;
   }
 
-  // 30
+  // 32
   function gardenCycle() {
     harvestGarden();
     plantGarden();
   }
 
-  // 31
+  // 33
   function manageMarket() {
     if (!gameReady() || !CONFIG.manageMarket || isPaused()) return;
     const bank = Game.Objects?.Bank?.minigame;
@@ -524,7 +596,7 @@
     });
   }
 
-  // 32
+  // 34
   function managePantheon() {
     if (!gameReady() || !CONFIG.managePantheon || isPaused()) return;
     const temple = Game.Objects?.Temple?.minigame;
@@ -540,7 +612,7 @@
     }, null, 'panteão falhou');
   }
 
-  // 33
+  // 35
   function manageDragon() {
     if (!gameReady() || !CONFIG.manageDragon || isPaused()) return;
     if (!Game.specialTab || !Game.specialTab.click) return;
@@ -554,7 +626,7 @@
     safe(() => Game.SetDragonAura(Number(target), 0), null, 'aura do dragão falhou');
   }
 
-  // 34
+  // 36
   function manageSeason() {
     if (!gameReady() || !CONFIG.manageSeasons || isPaused()) return;
     if (Game.season || typeof Game.startSeason !== 'function') return;
@@ -565,7 +637,7 @@
     }
   }
 
-  // 35
+  // 37
   function manageSugarLump() {
     if (!gameReady() || !CONFIG.manageSugarLumps || isPaused()) return;
     if (typeof Game.canLumps === 'function' && Game.canLumps() && Number(Game.lumpT || 0) > 0) {
@@ -575,14 +647,14 @@
     }
   }
 
-  // 36
+  // 38
   function cookiesPerHour() {
     const elapsed = (Date.now() - state.startedAt) / 3600000;
     if (elapsed <= 0 || !gameReady()) return 0;
     return Math.max(0, (Number(Game.cookies || 0) - state.cookiesAtStart) / elapsed);
   }
 
-  // 37
+  // 39
   function sessionSnapshot() {
     return {
       version: VERSION,
@@ -599,7 +671,7 @@
     };
   }
 
-  // 38
+  // 40
   function showStatus() {
     if (!gameReady()) {
       console.warn('[🍪 BOT V5] Cookie Clicker ainda não está pronto.');
@@ -611,7 +683,7 @@
     console.groupEnd();
   }
 
-  // 39
+  // 41
   function resetStats() {
     Object.keys(state.stats).forEach(key => { state.stats[key] = 0; });
     state.cookiesAtStart = Number(typeof Game !== 'undefined' ? Game.cookies || 0 : 0);
@@ -619,7 +691,7 @@
     log('info', '♻️ Estatísticas resetadas.');
   }
 
-  // 40
+  // 42
   function saveState() {
     safe(() => {
       localStorage.setItem(GLOBAL_KEY + ':stats', JSON.stringify(state.stats));
@@ -627,7 +699,7 @@
     }, null, 'persistência falhou');
   }
 
-  // 41
+  // 43
   function loadState() {
     safe(() => {
       const raw = localStorage.getItem(GLOBAL_KEY + ':stats');
@@ -649,7 +721,7 @@
     }
   }
 
-  // 43
+  // 45
   function start() {
     if (!gameReady()) {
       console.warn('[🍪 BOT V5] Aguarde o Cookie Clicker carregar.');
@@ -665,17 +737,17 @@
     state.lastCookies = state.cookiesAtStart;
 
     startClicker();
-    registerTimer(setInterval(clickShimmers, CONFIG.shimmerScanMs));
-    registerTimer(setInterval(purchaseCycle, CONFIG.purchaseScanMs));
-    registerTimer(setInterval(manageWrinklers, CONFIG.wrinklerScanMs));
-    registerTimer(setInterval(castGrimoire, CONFIG.grimoireScanMs));
-    registerTimer(setInterval(gardenCycle, CONFIG.gardenScanMs));
-    registerTimer(setInterval(manageMarket, CONFIG.marketScanMs));
-    registerTimer(setInterval(managePantheon, CONFIG.pantheonScanMs));
-    registerTimer(setInterval(manageDragon, CONFIG.dragonScanMs));
-    registerTimer(setInterval(manageSeason, CONFIG.seasonScanMs));
-    registerTimer(setInterval(manageSugarLump, CONFIG.sugarLumpScanMs));
-    registerTimer(setInterval(() => {
+    if (capability('shimmers')) registerTimer(setInterval(clickShimmers, CONFIG.shimmerScanMs));
+    if (capability('purchases')) registerTimer(setInterval(purchaseCycle, CONFIG.purchaseScanMs));
+    if (capability('wrinklers')) registerTimer(setInterval(manageWrinklers, CONFIG.wrinklerScanMs));
+    if (capability('grimoire')) registerTimer(setInterval(castGrimoire, CONFIG.grimoireScanMs));
+    if (capability('garden')) registerTimer(setInterval(gardenCycle, CONFIG.gardenScanMs));
+    if (capability('market')) registerTimer(setInterval(manageMarket, CONFIG.marketScanMs));
+    if (capability('pantheon')) registerTimer(setInterval(managePantheon, CONFIG.pantheonScanMs));
+    if (capability('dragon')) registerTimer(setInterval(manageDragon, CONFIG.dragonScanMs));
+    if (capability('seasons')) registerTimer(setInterval(manageSeason, CONFIG.seasonScanMs));
+    if (capability('sugarLumps')) registerTimer(setInterval(manageSugarLump, CONFIG.sugarLumpScanMs));
+    if (capability('prestige')) registerTimer(setInterval(() => {
       if (shouldAscend()) performAscension();
     }, CONFIG.prestigeScanMs));
     registerTimer(setInterval(() => {
@@ -692,7 +764,7 @@
     log('info', '🟢 V5 iniciado — 50+ funções disponíveis.');
   }
 
-  // 44
+  // 46
   function stop() {
     clearTimers();
     window.removeEventListener('keydown', handleKey);
@@ -703,7 +775,7 @@
     log('info', '🔴 V5 parado.');
   }
 
-  // 45
+  // 47
   function pause() {
     if (!state.active) return;
     state.paused = true;
@@ -711,7 +783,7 @@
     log('info', '⏸️ V5 pausado.');
   }
 
-  // 46
+  // 48
   function resume() {
     if (!state.active) return;
     state.paused = false;
@@ -719,7 +791,7 @@
     log('info', '▶️ V5 retomado.');
   }
 
-  // 47
+  // 49
   function emergencyStop() {
     clearTimers();
     stopClicker();
@@ -729,22 +801,30 @@
     log('warn', '🛑 PARADA DE EMERGÊNCIA executada.');
   }
 
-  // 48
+  // 50
   function diagnostics() {
     const gameExists = typeof Game !== 'undefined' && !!Game;
+    const capabilities = detectCapabilities();
     const report = {
+      version: VERSION,
       gameReady: gameReady(),
-      hasShimmers: gameExists && !!Game.shimmers,
-      buildings: gameExists && Array.isArray(Game.ObjectsById) ? Game.ObjectsById.length : 0,
-      upgrades: gameExists && Array.isArray(Game.UpgradesInStore) ? Game.UpgradesInStore.length : 0,
-      wrinklers: gameExists && Array.isArray(Game.wrinklers) ? Game.wrinklers.length : 0,
-      wizardTower: gameExists && !!Game.Objects?.['Wizard tower']?.minigame,
-      farm: gameExists && !!Game.Objects?.Farm?.minigame,
-      bank: gameExists && !!Game.Objects?.Bank?.minigame,
-      temple: gameExists && !!Game.Objects?.Temple?.minigame,
-      dragonLevel: gameExists ? Number(Game.dragonLevel || 0) : 0
+      active: state.active,
+      paused: state.paused,
+      game: {
+        cookies: gameExists ? Number(Game.cookies || 0) : 0,
+        cps: gameExists ? Number(Game.cookiesPs || 0) : 0,
+        prestige: gameExists ? Number(Game.prestige || 0) : 0,
+        buildings: gameExists && Array.isArray(Game.ObjectsById) ? Game.ObjectsById.length : 0,
+        upgrades: gameExists && Array.isArray(Game.UpgradesInStore) ? Game.UpgradesInStore.length : 0,
+        wrinklers: gameExists && Array.isArray(Game.wrinklers) ? Game.wrinklers.length : 0,
+        dragonLevel: gameExists ? Number(Game.dragonLevel || 0) : 0
+      },
+      capabilities
     };
-    console.table(report);
+    console.group('🍪 Cookie Clicker Bot V5 — Diagnóstico');
+    console.table(Object.fromEntries(Object.entries(capabilities).map(([name, item]) => [name, item.supported ? 'OK' : 'INDISPONÍVEL'])));
+    console.log(report);
+    console.groupEnd();
     return report;
   }
 
@@ -757,13 +837,15 @@
     return { ...CONFIG };
   }
 
-  // 50
+  // 52
   function api() {
     return {
       version: VERSION,
       start, stop, pause, resume, emergencyStop,
       status: showStatus,
       diagnostics,
+      capabilities: detectCapabilities,
+      capability,
       resetStats,
       config,
       prestigeGain,
@@ -773,7 +855,7 @@
     };
   }
 
-  // 51 — proteção contra múltiplas instâncias
+  // 53 — proteção contra múltiplas instâncias
   if (window[GLOBAL_KEY]?.stop) {
     safe(() => window[GLOBAL_KEY].stop(), null, 'instância anterior não pôde ser parada');
   }
