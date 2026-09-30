@@ -508,3 +508,69 @@ CookieBotV5.stopScheduler()
 ```
 
 > A V5.6 foi verificada estaticamente. O comportamento do scheduler, watchdog e APIs dos minigames ainda precisa de execução dentro do Cookie Clicker real para validação de runtime.
+
+
+## V5.7 — SelfTest, Dashboard e Telemetria
+
+A V5.7 adiciona uma camada de observabilidade sem substituir a V5.6. O arquivo
+`cookieclicker-bot-v5.7.js` deve ser carregado **depois** da V5.6.
+
+### SelfTest
+
+Executa uma verificação rápida do ambiente e classifica os módulos como:
+
+- `SUPPORTED`
+- `UNAVAILABLE`
+- `DEGRADED`
+- `ERROR`
+
+Comando:
+
+```js
+CookieBotV57.selfTest()
+```
+
+### Dashboard
+
+Mostra em grupos do console:
+
+- estado operacional;
+- cookies, CpS e prestígio;
+- saúde geral;
+- situação de cada módulo;
+- quantidade de entradas no histórico;
+- contadores da própria camada V5.7.
+
+Comando:
+
+```js
+CookieBotV57.dashboard()
+```
+
+### Telemetria
+
+Produz um snapshot estruturado para inspeção e futuras integrações:
+
+```js
+CookieBotV57.telemetry()
+```
+
+### Relatório periódico
+
+A camada também pode gerar relatórios em intervalo configurável:
+
+```js
+CookieBotV57.report()
+CookieBotV57.watch()            // padrão: 30 minutos
+CookieBotV57.watch(600000)      // 10 minutos
+CookieBotV57.stopWatch()
+```
+
+### Importante
+
+A V5.7 é uma **camada complementar**: V5.6 continua sendo o motor de automação,
+enquanto V5.7 observa, diagnostica e apresenta o estado. Isso mantém a evolução
+incremental e permite comparar as versões sem apagar as anteriores.
+
+A revisão desta versão foi feita estaticamente no repositório. A validação final
+das APIs do Cookie Clicker continua dependendo da execução no runtime real.
