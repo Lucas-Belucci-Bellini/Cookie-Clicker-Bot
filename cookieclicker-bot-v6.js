@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.18.0';
+  const VERSION = '6.19.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -59,6 +59,7 @@
     historyMaxEntries: 96,
     healthEnabled: true,
     healthHistoryMaxEntries: 96,
+    healthRecoveryCooldownMs: 15000,
 
     // Minigames são opcionais e só executam quando a API real estiver presente.
     grimoire: false,
@@ -151,6 +152,7 @@
       watchdogRestarts: 0,
       healthChecks: 0,
       healthRecoveries: 0,
+      healthStaleDetections: 0,
       upgradeAnalyses: 0,
       ascensionChecks: 0,
       ascensionFailures: 0,
@@ -1338,8 +1340,17 @@
   function healthCycle() {
     if (!state.active || state.paused) return null;
     const before = healthSummary();
-    if ((before.counts.STALE || 0) > 0) state.stats.healthRecoveries++;
-    return before;
+    const stale = Number(before.counts.STALE || 0);
+    if (stale > 0) {
+      state.stats.healthStaleDetections = (state.stats.healthStaleDetections || 0) + stale;
+    }
+    // Health observa e registra. A recuperação real pertence ao Watchdog,
+    // evitando contar uma detecção de STALE como se fosse uma recuperação.
+    return {
+      ...before,
+      recoveryOwner: 'watchdog',
+      staleDetected: stale
+    };
   }
 
   function operationalState() {
