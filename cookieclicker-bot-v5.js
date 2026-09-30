@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '5.6.0';
+  const VERSION = '5.8.0';
   const GLOBAL_KEY = '__COOKIE_CLICKER_BOT_V5__';
 
   // ============================================================
@@ -47,6 +47,7 @@
     schedulerIntervalMs: 1000,
     watchdogIntervalMs: 10000,
     watchdogGraceMs: 15000,
+    healthHistoryMaxEntries: 120,
 
     clickGolden: true,
     clickWrath: true,
@@ -862,8 +863,13 @@
   // 69
   function registerTask(name, intervalMs, priority, handler) {
     if (!name || typeof handler !== 'function') return false;
-    state.schedulerTasks.set(name, { name, intervalMs: Math.max(100, intervalMs), priority: Number(priority || 0), handler });
+    const task = { name, intervalMs: Math.max(100, intervalMs), priority: Number(priority || 0), handler };
+    state.schedulerTasks.set(name, task);
     state.taskLastRun.set(name, 0);
+    state.taskLastSuccess.set(name, 0);
+    state.taskRunCount.set(name, 0);
+    state.taskTotalMs.set(name, 0);
+    state.taskHealth.set(name, { status: 'WAITING', runs: 0, failures: 0, lastRun: 0, lastSuccess: 0, lastDurationMs: 0, totalDurationMs: 0 });
     return true;
   }
 
@@ -876,13 +882,24 @@
     for (const task of tasks) {
       const last = state.taskLastRun.get(task.name) || 0;
       if (now - last < task.intervalMs) continue;
+      const started = performance.now();
       try {
         task.handler();
+        const duration = performance.now() - started;
         state.taskLastRun.set(task.name, now);
+        state.taskLastSuccess.set(task.name, now);
         state.taskFailures.set(task.name, 0);
+        state.taskRunCount.set(task.name, (state.taskRunCount.get(task.name) || 0) + 1);
+        state.taskTotalMs.set(task.name, (state.taskTotalMs.get(task.name) || 0) + duration);
+        state.taskHealth.set(task.name, { status: 'HEALTHY', runs: state.taskRunCount.get(task.name), failures: 0, lastRun: now, lastSuccess: now, lastDurationMs: Number(duration.toFixed(2)), totalDurationMs: Number(state.taskTotalMs.get(task.name).toFixed(2)) });
       } catch (error) {
         const failures = (state.taskFailures.get(task.name) || 0) + 1;
+        const duration = performance.now() - started;
+        state.taskLastRun.set(task.name, now);
         state.taskFailures.set(task.name, failures);
+        state.taskRunCount.set(task.name, (state.taskRunCount.get(task.name) || 0) + 1);
+        state.taskTotalMs.set(task.name, (state.taskTotalMs.get(task.name) || 0) + duration);
+        state.taskHealth.set(task.name, { status: failures >= 3 ? 'ERROR' : 'DEGRADED', runs: state.taskRunCount.get(task.name), failures, lastRun: now, lastSuccess: state.taskLastSuccess.get(task.name) || 0, lastDurationMs: Number(duration.toFixed(2)), totalDurationMs: Number(state.taskTotalMs.get(task.name).toFixed(2)) });
         state.stats.errors++;
         log('error', 'Falha na tarefa ' + task.name, error);
       }
@@ -899,12 +916,20 @@
       if (now - last > task.intervalMs + grace) {
         state.stats.watchdogRestarts++;
         try {
+          const started = performance.now();
           task.handler();
+          const duration = performance.now() - started;
           state.taskLastRun.set(task.name, now);
+          state.taskLastSuccess.set(task.name, now);
           state.taskFailures.set(task.name, 0);
+          state.taskRunCount.set(task.name, (state.taskRunCount.get(task.name) || 0) + 1);
+          state.taskTotalMs.set(task.name, (state.taskTotalMs.get(task.name) || 0) + duration);
+          state.taskHealth.set(task.name, { status: 'RECOVERED', runs: state.taskRunCount.get(task.name), failures: 0, lastRun: now, lastSuccess: now, lastDurationMs: Number(duration.toFixed(2)), totalDurationMs: Number(state.taskTotalMs.get(task.name).toFixed(2)) });
           log('warn', 'Watchdog recuperou e executou: ' + task.name);
         } catch (error) {
-          state.taskFailures.set(task.name, (state.taskFailures.get(task.name) || 0) + 1);
+          const failures = (state.taskFailures.get(task.name) || 0) + 1;
+          state.taskFailures.set(task.name, failures);
+          state.taskHealth.set(task.name, { status: failures >= 3 ? 'ERROR' : 'DEGRADED', runs: state.taskRunCount.get(task.name) || 0, failures, lastRun: now, lastSuccess: state.taskLastSuccess.get(task.name) || 0, lastDurationMs: 0, totalDurationMs: state.taskTotalMs.get(task.name) || 0 });
           state.stats.errors++;
           log('error', 'Watchdog não conseguiu recuperar: ' + task.name, error);
         }
@@ -951,7 +976,47 @@
     return state.schedulerTasks.size;
   }
 
+
   // 75
+  function schedulerHealth() {
+    const now = Date.now();
+    return [...state.schedulerTasks.values()]
+      .sort((a, b) => b.priority - a.priority)
+      .map(task => {
+        const health = state.taskHealth.get(task.name) || {};
+        const lastSuccess = Number(state.taskLastSuccess.get(task.name) || 0);
+        const staleAfter = task.intervalMs + Math.max(5000, Number(CONFIG.watchdogGraceMs || 15000));
+        const stale = !lastSuccess || now - lastSuccess > staleAfter;
+        const failures = Number(state.taskFailures.get(task.name) || 0);
+        const status = failures >= 3 ? 'ERROR' : stale && state.active ? 'STALE' : health.status || 'WAITING';
+        return {
+          task: task.name,
+          priority: task.priority,
+          intervalMs: task.intervalMs,
+          status,
+          runs: Number(state.taskRunCount.get(task.name) || 0),
+          failures,
+          lastRun: Number(state.taskLastRun.get(task.name) || 0),
+          lastSuccess,
+          ageMs: lastSuccess ? now - lastSuccess : null,
+          lastDurationMs: health.lastDurationMs || 0,
+          avgDurationMs: Number(((state.taskTotalMs.get(task.name) || 0) / Math.max(1, Number(state.taskRunCount.get(task.name) || 0))).toFixed(2))
+        };
+      });
+  }
+
+  // 76
+  function healthSummary() {
+    const tasks = schedulerHealth();
+    const counts = tasks.reduce((acc, task) => {
+      acc[task.status] = (acc[task.status] || 0) + 1;
+      return acc;
+    }, {});
+    const overall = counts.ERROR ? 'ERROR' : counts.STALE ? 'DEGRADED' : counts.DEGRADED ? 'DEGRADED' : 'HEALTHY';
+    return { overall, active: state.active, paused: state.paused, schedulerRunning: !!state.schedulerTimer, watchdogRunning: !!state.watchdogTimer, counts, tasks };
+  }
+
+  // 77
   function start() {
     if (!gameReady()) {
       console.warn('[🍪 BOT V5] Aguarde o Cookie Clicker carregar.');
@@ -977,6 +1042,7 @@
 
   // 46
   function stop() {
+    stopScheduler();
     clearTimers();
     window.removeEventListener('keydown', handleKey);
     saveState();
@@ -1004,6 +1070,7 @@
 
   // 49
   function emergencyStop() {
+    stopScheduler();
     clearTimers();
     stopClicker();
     state.active = false;
@@ -1142,7 +1209,11 @@
   function config(nextConfig) {
     if (!nextConfig || typeof nextConfig !== 'object') return { ...CONFIG };
     Object.assign(CONFIG, nextConfig);
-    if (state.active) startClicker();
+    if (state.active) {
+      startClicker();
+      configureScheduler();
+      startScheduler();
+    }
     log('info', '⚙️ Configuração atualizada.');
     return { ...CONFIG };
   }
@@ -1154,6 +1225,8 @@
       start, stop, pause, resume, emergencyStop,
       status: showStatus,
       diagnostics,
+      schedulerHealth,
+      healthSummary,
       economicReport,
       periodicReport,
       performanceHistory,
