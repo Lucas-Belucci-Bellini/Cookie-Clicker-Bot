@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.1.0';
+  const VERSION = '6.2.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -38,6 +38,10 @@
 
     spendingLimit: 0.75,
     reserveCookies: 0,
+    economyEnabled: true,
+    targetPaybackSeconds: 3600,
+    upgradeValueWeight: 1.2,
+    buildingValueWeight: 1,
 
     // Minigames são opcionais e só executam quando a API real estiver presente.
     grimoire: false,
@@ -68,6 +72,8 @@
       ascensions: 0,
       heavenlyUpgrades: 0,
       reincarnations: 0,
+      economicDecisions: 0,
+      economicNoops: 0,
       errors: 0,
       ticks: 0
     }
@@ -253,10 +259,103 @@
     }, false, 'compra de edifício falhou');
   }
 
+  function effectiveCookieReserve() {
+    const bank = cookies();
+    const ratio = Math.max(0, Math.min(1, Number(CONFIG.reserveCookiesRatio || 0)));
+    return Math.max(0, Number(CONFIG.reserveCookies || 0), bank * ratio);
+  }
+
+  function economicBudget() {
+    const bank = cookies();
+    const limit = Math.max(0, Math.min(1, Number(CONFIG.spendingLimit)));
+    return Math.max(0, bank * limit - effectiveCookieReserve());
+  }
+
+  function economicEfficiency(price, value, payback) {
+    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(value) || value <= 0) return 0;
+    const normalizedPayback = Number.isFinite(payback) && payback > 0 ? payback : CONFIG.targetPaybackSeconds;
+    const target = Math.max(1, Number(CONFIG.targetPaybackSeconds) || 3600);
+    return (value / price) * Math.min(2, target / Math.max(1, normalizedPayback));
+  }
+
+  function economicScoreBuilding(building) {
+    const price = getBuildingPrice(building);
+    const value = getBuildingCps(building);
+    if (!Number.isFinite(price) || price <= 0 || value <= 0 || price > economicBudget()) return 0;
+    const payback = price / value;
+    return economicEfficiency(price, value, payback) * Number(CONFIG.buildingValueWeight || 1);
+  }
+
+  function economicScoreUpgrade(upgrade) {
+    if (!upgrade || typeof upgrade.buy !== 'function') return 0;
+    const price = safe(() => Number(upgrade.getPrice()), Infinity, 'preço de upgrade inválido');
+    if (!Number.isFinite(price) || price <= 0 || price > economicBudget()) return 0;
+
+    // Upgrades nem sempre expõem ganho numérico; nesse caso recebem um valor conservador,
+    // mas continuam competindo com edifícios em vez de dominarem a economia.
+    const value = Number(upgrade.cps || upgrade.cpsMult || upgrade.power || 1);
+    return economicEfficiency(price, Math.max(1, value), price / Math.max(1, value)) *
+      Number(CONFIG.upgradeValueWeight || 1);
+  }
+
+  function chooseEconomicAction() {
+    if (!gameReady()) return null;
+
+    const upgrades = Array.isArray(Game.UpgradesInStore)
+      ? Game.UpgradesInStore.filter(u => u && !u.bought).map(u => ({
+          type: 'upgrade', item: u, score: economicScoreUpgrade(u)
+        })).filter(x => x.score > 0)
+      : [];
+
+    const buildings = Array.isArray(Game.ObjectsById)
+      ? Game.ObjectsById.filter(b => b && !b.locked).map(b => ({
+          type: 'building', item: b, score: economicScoreBuilding(b)
+        })).filter(x => x.score > 0)
+      : [];
+
+    return upgrades.concat(buildings).sort((a, b) => b.score - a.score)[0] || null;
+  }
+
+  function executeEconomicAction(action) {
+    if (!action || isPaused()) return false;
+    return safe(() => {
+      action.item.buy(1);
+      if (action.type === 'upgrade') {
+        state.stats.upgrades++;
+        state.lastAction = 'upgrade:economia:' + String(action.item.name || action.item.id);
+      } else {
+        state.stats.buildings++;
+        state.lastAction = 'building:economia:' + String(action.item.name || action.item.id);
+      }
+      state.stats.economicDecisions++;
+      return true;
+    }, false, 'decisão econômica falhou');
+  }
+
+  function economicReport() {
+    const data = {
+      generatedAt: new Date().toISOString(),
+      cookies: cookies(),
+      cps: cps(),
+      budget: economicBudget(),
+      economicDecisions: state.stats.economicDecisions,
+      economicNoops: state.stats.economicNoops,
+      lastAction: state.lastAction
+    };
+    console.group('🍪 CookieBot V6 — Economia');
+    console.table(data);
+    console.groupEnd();
+    return data;
+  }
+
   function purchaseCycle() {
     if (isPaused() || !gameReady()) return;
-    // Primeiro tenta o upgrade mais barato disponível.
-    // Se não houver, usa ROI de edifícios.
+    if (CONFIG.economyEnabled) {
+      const action = chooseEconomicAction();
+      if (executeEconomicAction(action)) return;
+      state.stats.economicNoops++;
+      return;
+    }
     if (buyBestUpgrade()) return;
     buyBestBuilding();
   }
@@ -493,6 +592,7 @@
     addTimer('prestige', CONFIG.prestigeMs, tryAscend);
     addTimer('status', CONFIG.statusMs, status);
     addTimer('report', CONFIG.reportMs, report);
+    addTimer('economicReport', CONFIG.reportMs, economicReport);
   }
 
   function stop() {
@@ -562,6 +662,13 @@
       buyBestUpgrade,
       buyBestBuilding,
       manageWrinklers,
+      effectiveCookieReserve,
+      economicBudget,
+      economicScoreBuilding,
+      economicScoreUpgrade,
+      chooseEconomicAction,
+      executeEconomicAction,
+      economicReport,
       moduleStatus
     };
   }
@@ -574,7 +681,7 @@
   window[KEY] = api();
   window.CookieBotV6 = window[KEY];
 
-  console.log('%c🍪 Cookie Clicker Bot V6.0.0 carregado', 'font-weight:bold;font-size:14px');
+  console.log('%c🍪 Cookie Clicker Bot V' + VERSION + ' carregado', 'font-weight:bold;font-size:14px');
   console.log('Se o jogo já estiver pronto, o V6 inicia sozinho. Se não estiver, execute CookieBotV6.start() após carregar.');
   console.log('Diagnóstico: CookieBotV6.diagnostics()');
 
