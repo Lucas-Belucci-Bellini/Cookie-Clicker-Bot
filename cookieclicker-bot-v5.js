@@ -398,7 +398,7 @@
     const price = safe(() => Number(upgrade.getPrice()), Infinity, 'preço de upgrade inválido');
     const cookies = Number(Game.cookies || 0);
     const reserve = effectiveCookieReserve();
-    if (!Number.isFinite(price) || price <= 0 || cookies - price < reserve) return -Infinity;
+    if (!Number.isFinite(price) || price <= 0 || price > economicBudget() || cookies - price < reserve) return -Infinity;
     let value = 1;
     const desc = String(upgrade.desc || upgrade.name || '').toLowerCase();
     if (desc.includes('cookies per second') || desc.includes('cps') || desc.includes('cookie')) value += 1;
