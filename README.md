@@ -238,3 +238,90 @@ As versões existentes são aprimoradas incrementalmente na **main**. A evoluç�
 - `fix(v2): endurecer cálculo de prestígio e detecção de wrinklers`
 - `fix(v3): endurecer prestígio e preço marginal de edifícios`
 - `fix(v4): fortalecer timer pós-ascensão e cálculo de ROI`
+
+
+## V5 — Ultimate
+
+A V5 foi criada como uma evolução modular das versões anteriores, sem apagar V1–V4.
+
+### Correções incorporadas
+
+- cálculo de prestígio protegido contra valores inválidos;
+- detecção de wrinklers baseada em estado ativo e cookies sugados;
+- preço atual de edifícios usando `getPrice()` quando disponível;
+- ROI de edifícios com validação de CpS;
+- proteção contra múltiplas instâncias;
+- timers centralizados e limpeza segura;
+- estado explícito de pausa/ascensão;
+- tratamento seguro de erros em operações de jogo;
+- persistência básica de estatísticas no `localStorage`;
+- parada de emergência;
+- diagnóstico do ambiente antes de depender de minigames.
+
+### 50+ funções do V5
+
+1. verificação do jogo
+2. logging por nível
+3. wrapper seguro de operações
+4. formatação de números
+5. registro de timers
+6. limpeza de timers
+7. modo noturno
+8. estado de pausa
+9. detecção de buffs
+10. seleção de velocidade
+11. início do auto-clicker
+12. parada do auto-clicker
+13. filtro de shimmers
+14. coleta de shimmers
+15. preço marginal de edifício
+16. CpS marginal
+17. limite de gasto
+18. compra de melhor edifício
+19. compra de upgrades
+20. ciclo de compras
+21. cálculo de prestígio
+22. decisão de ascensão
+23. compra de upgrades celestiais
+24. fluxo de ascensão/reencarnação
+25. contagem de wrinklers
+26. gerenciamento de wrinklers
+27. grimório
+28. colheita do jardim
+29. plantio do jardim
+30. ciclo do jardim
+31. mercado de ações
+32. panteão
+33. aura do dragão
+34. temporadas
+35. sugar lumps
+36. cookies por hora
+37. snapshot da sessão
+38. painel de status
+39. reset de estatísticas
+40. salvamento de estado
+41. carregamento de estado
+42. atalhos de teclado
+43. inicialização
+44. parada
+45. pausa
+46. retomada
+47. parada de emergência
+48. diagnóstico
+49. atualização de configuração
+50. API pública
+51. proteção contra instâncias duplicadas
+
+### Comandos V5
+
+```js
+CookieBotV5.status()
+CookieBotV5.diagnostics()
+CookieBotV5.pause()
+CookieBotV5.resume()
+CookieBotV5.stop()
+CookieBotV5.emergencyStop()
+CookieBotV5.config({ spendingLimit: 0.25 })
+```
+
+A V5 é deliberadamente independente: V1, V2, V3 e V4 continuam disponíveis para comparação, testes e evolução incremental.
