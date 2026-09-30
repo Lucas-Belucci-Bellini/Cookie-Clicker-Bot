@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '5.8.0';
+  const VERSION = '5.9.0';
   const GLOBAL_KEY = '__COOKIE_CLICKER_BOT_V5__';
 
   // ============================================================
@@ -48,6 +48,7 @@
     watchdogIntervalMs: 10000,
     watchdogGraceMs: 15000,
     healthHistoryMaxEntries: 120,
+    healthSnapshotIntervalMs: 60000,
 
     clickGolden: true,
     clickWrath: true,
@@ -1016,7 +1017,104 @@
     return { overall, active: state.active, paused: state.paused, schedulerRunning: !!state.schedulerTimer, watchdogRunning: !!state.watchdogTimer, counts, tasks };
   }
 
-  // 77
+
+  // 79
+  function healthSnapshot() {
+    const summary = healthSummary();
+    const snapshot = {
+      timestamp: Date.now(),
+      generatedAt: new Date().toISOString(),
+      overall: summary.overall,
+      active: summary.active,
+      paused: summary.paused,
+      schedulerRunning: summary.schedulerRunning,
+      watchdogRunning: summary.watchdogRunning,
+      counts: { ...summary.counts },
+      tasks: summary.tasks.map(task => ({
+        task: task.task,
+        status: task.status,
+        runs: task.runs,
+        failures: task.failures,
+        ageMs: task.ageMs,
+        lastDurationMs: task.lastDurationMs,
+        avgDurationMs: task.avgDurationMs
+      }))
+    };
+    state.healthHistory.push(snapshot);
+    const max = Math.max(10, Number(CONFIG.healthHistoryMaxEntries || 120));
+    if (state.healthHistory.length > max) state.healthHistory.splice(0, state.healthHistory.length - max);
+    return snapshot;
+  }
+
+  // 80
+  function healthHistory() {
+    return state.healthHistory.map(snapshot => ({
+      ...snapshot,
+      counts: { ...snapshot.counts },
+      tasks: snapshot.tasks.map(task => ({ ...task }))
+    }));
+  }
+
+  // 81
+  function healthTrend() {
+    const history = state.healthHistory;
+    if (history.length < 2) return { status: 'INSUFFICIENT_DATA', samples: history.length };
+    const recent = history.slice(-Math.min(5, history.length));
+    const severity = { HEALTHY: 0, DEGRADED: 1, ERROR: 2 };
+    const values = recent.map(item => severity[item.overall] ?? 1);
+    const first = values[0], last = values[values.length - 1];
+    let trend = 'STABLE';
+    if (last < first) trend = 'IMPROVING';
+    if (last > first) trend = 'DEGRADING';
+    const errorSamples = recent.filter(item => item.overall === 'ERROR').length;
+    const degradedSamples = recent.filter(item => item.overall === 'DEGRADED').length;
+    return {
+      status: trend,
+      samples: history.length,
+      windowSamples: recent.length,
+      errorSamples,
+      degradedSamples,
+      current: history[history.length - 1].overall,
+      previous: history[history.length - 2].overall
+    };
+  }
+
+  // 82
+  function healthReport() {
+    const summary = healthSummary();
+    const trend = healthTrend();
+    const snapshot = healthSnapshot();
+    console.groupCollapsed('%c🍪 CookieBot V' + VERSION + ' — Health Report', 'font-weight:bold');
+    console.table(summary.tasks.map(task => ({
+      Task: task.task,
+      Status: task.status,
+      Runs: task.runs,
+      Failures: task.failures,
+      'Last ms': task.lastDurationMs,
+      'Avg ms': task.avgDurationMs
+    })));
+    console.log('Overall:', summary.overall, '| Trend:', trend.status, '| Samples:', trend.samples);
+    console.log('Snapshot:', snapshot);
+    console.groupEnd();
+    return { summary, trend, snapshot };
+  }
+
+  // 83
+  function startHealthMonitor() {
+    if (state.healthSnapshotTimer) clearInterval(state.healthSnapshotTimer);
+    healthSnapshot();
+    state.healthSnapshotTimer = setInterval(() => safe(healthSnapshot), Math.max(10000, Number(CONFIG.healthSnapshotIntervalMs || 60000)));
+    return true;
+  }
+
+  // 84
+  function stopHealthMonitor() {
+    if (state.healthSnapshotTimer) clearInterval(state.healthSnapshotTimer);
+    state.healthSnapshotTimer = null;
+    return true;
+  }
+
+  // 85
   function start() {
     if (!gameReady()) {
       console.warn('[🍪 BOT V5] Aguarde o Cookie Clicker carregar.');
@@ -1042,6 +1140,7 @@
 
   // 46
   function stop() {
+    stopHealthMonitor();
     stopScheduler();
     clearTimers();
     window.removeEventListener('keydown', handleKey);
@@ -1070,6 +1169,7 @@
 
   // 49
   function emergencyStop() {
+    stopHealthMonitor();
     stopScheduler();
     clearTimers();
     stopClicker();
@@ -1227,6 +1327,18 @@
       diagnostics,
       schedulerHealth,
       healthSummary,
+    healthSnapshot,
+    healthHistory,
+    healthTrend,
+    healthReport,
+    startHealthMonitor,
+    stopHealthMonitor,
+      healthSnapshot,
+      healthHistory,
+      healthTrend,
+      healthReport,
+      startHealthMonitor,
+      stopHealthMonitor,
       economicReport,
       periodicReport,
       performanceHistory,
