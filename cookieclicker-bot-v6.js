@@ -622,8 +622,11 @@
       upgrades: state.stats.upgrades,
       buildings: state.stats.buildings,
       errors: state.stats.errors,
+      economicDecisions: state.stats.economicDecisions,
+      economicNoops: state.stats.economicNoops,
       lastAction: state.lastAction
     };
+    saveHistory(data);
     console.group('🍪 CookieBot V6 — Relatório');
     console.table(data);
     console.groupEnd();
