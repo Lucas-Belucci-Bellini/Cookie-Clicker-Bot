@@ -25,6 +25,20 @@ CookieBotV6.config({
 })
 ```
 
+## V6.4 — Grimoire
+
+A V6.4 reconstrói a automação do Grimoire como módulo opcional e isolado.
+
+- detecção do minigame no Wizard Tower;
+- compatibilidade com `spells` e `spellsByName`;
+- seleção por nome configurável ou fallback conservador;
+- limite mínimo de magia;
+- contador de conjurações;
+- API `grimoireMinigame()`, `findGrimoireSpell()` e `castGrimoire()`;
+- desativado por padrão para não alterar a estratégia do jogador sem configuração explícita.
+
+Configuração: `grimoireEnabled`, `grimoireSpell` e `grimoireMinMagic`.
+
 ## V6.3 — Persistência e Histórico
 
 A V6.3 adiciona persistência local sem acoplar o runtime a uma camada externa.
