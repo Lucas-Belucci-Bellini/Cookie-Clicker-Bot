@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '5.1.0';
+  const VERSION = '5.2.0';
   const GLOBAL_KEY = '__COOKIE_CLICKER_BOT_V5__';
 
   // ============================================================
@@ -48,6 +48,7 @@
     managePantheon: true,
     manageDragon: true,
     manageSeasons: true,
+    seasonPriority: ['valentines', 'christmas', 'halloween', 'easter', 'fools'],
     manageSugarLumps: true,
 
     autoAscend: true,
@@ -419,7 +420,11 @@
     const tower = Game.Objects?.['Wizard tower'];
     const minigame = tower?.minigame;
     if (!minigame || typeof minigame.castSpell !== 'function') return false;
-    const spell = minigame.spells?.[CONFIG.grimoireSpell] || minigame.spellsByName?.[CONFIG.grimoireSpell];
+    const requested = String(CONFIG.grimoireSpell || '').toLowerCase();
+    const spell = minigame.spells?.[CONFIG.grimoireSpell]
+      || minigame.spellsByName?.[CONFIG.grimoireSpell]
+      || Object.values(minigame.spells || {}).find(s => String(s.name || '').toLowerCase() === requested)
+      || Object.values(minigame.spellsByName || {}).find(s => String(s.name || '').toLowerCase() === requested);
     if (!spell) return false;
     const magic = Number(minigame.magic || 0);
     const cost = Number(spell.costMin || spell.cost || 0);
@@ -437,11 +442,26 @@
     const farm = Game.Objects?.Farm?.minigame;
     if (!farm || !Array.isArray(farm.plot)) return 0;
     let count = 0;
+    if (typeof farm.getTile === 'function' && typeof farm.harvest === 'function') {
+      const rows = farm.plot.length;
+      const cols = Array.isArray(farm.plot[0]) ? farm.plot[0].length : 0;
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const tile = safe(() => farm.getTile(x, y), null, 'leitura de célula do jardim falhou');
+          if (!tile || tile[0] <= 0) continue;
+          const plant = farm.plantsById?.[tile[0] - 1];
+          if (plant && Number(tile[1] || 0) >= Number(plant.mature || 100)) {
+            safe(() => { farm.harvest(x, y); count++; state.stats.gardenHarvests++; }, null, 'colheita falhou');
+          }
+        }
+      }
+      return count;
+    }
     farm.plot.forEach(cell => {
-      const id = Array.isArray(cell) ? cell[0] : cell;
+      const id = Array.isArray(cell) ? cell[0] : -1;
+      const age = Array.isArray(cell) ? Number(cell[1] || 0) : 0;
       const plant = farm.plantsById?.[id];
-      const mature = Array.isArray(cell) ? Number(cell[1] || 0) >= 100 : false;
-      if (plant && mature && typeof farm.harvest === 'function') {
+      if (plant && age >= Number(plant.mature || 100) && typeof farm.harvest === 'function') {
         safe(() => { farm.harvest(cell); count++; state.stats.gardenHarvests++; }, null, 'colheita falhou');
       }
     });
@@ -453,14 +473,24 @@
     if (!gameReady() || !CONFIG.manageGarden || isPaused()) return 0;
     const farm = Game.Objects?.Farm?.minigame;
     if (!farm || !Array.isArray(farm.plot) || typeof farm.useTool !== 'function') return 0;
-    const plant = farm.plantsByName?.[CONFIG.favoriteSeed];
+    const plant = farm.plantsByName?.[CONFIG.favoriteSeed] || farm.plants?.[CONFIG.favoriteSeed];
     if (!plant) return 0;
     let count = 0;
+    if (typeof farm.getTile === 'function') {
+      const rows = farm.plot.length;
+      const cols = Array.isArray(farm.plot[0]) ? farm.plot[0].length : 0;
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const tile = safe(() => farm.getTile(x, y), null, 'leitura de célula do jardim falhou');
+          if (!tile || tile[0] !== 0) continue;
+          safe(() => { farm.useTool(plant.id + 1, x, y); count++; state.stats.gardenPlants++; }, null, 'plantio falhou');
+        }
+      }
+      return count;
+    }
     farm.plot.forEach((cell, index) => {
       const id = Array.isArray(cell) ? cell[0] : -1;
-      if (id < 0) {
-        safe(() => { farm.useTool(index, plant.id); count++; state.stats.gardenPlants++; }, null, 'plantio falhou');
-      }
+      if (id < 0) safe(() => { farm.useTool(index, plant.id); count++; state.stats.gardenPlants++; }, null, 'plantio falhou');
     });
     return count;
   }
@@ -476,7 +506,7 @@
     if (!gameReady() || !CONFIG.manageMarket || isPaused()) return;
     const bank = Game.Objects?.Bank?.minigame;
     if (!bank) return;
-    const goods = bank.goods || [];
+    const goods = bank.goodsById || bank.goods || [];
     goods.forEach(good => {
       const price = Number(good.val || 0);
       const base = Number(good.basePrice || 0);
@@ -501,27 +531,37 @@
     if (!temple || typeof temple.slotGod !== 'function') return;
     const gods = temple.gods || {};
     const preferred = Object.values(gods).find(g => /mokalsium/i.test(g.name || ''));
-    if (preferred) safe(() => temple.slotGod(0, preferred.id), null, 'panteão falhou');
+    if (preferred) safe(() => {
+      try {
+        temple.slotGod(preferred, 0);
+      } catch (firstError) {
+        temple.slotGod(0, preferred.id);
+      }
+    }, null, 'panteão falhou');
   }
 
   // 33
   function manageDragon() {
     if (!gameReady() || !CONFIG.manageDragon || isPaused()) return;
     if (!Game.specialTab || !Game.specialTab.click) return;
-    const dragon = Game.dragonLevel;
-    if (dragon < 5) return;
-    const aura = hasBuff('click frenzy') ? 2 : 1;
-    safe(() => {
-      if (typeof Game.SetDragonAura === 'function') Game.SetDragonAura(aura);
-    }, null, 'aura do dragão falhou');
+    const dragon = Number(Game.dragonLevel || 0);
+    if (dragon < 5 || typeof Game.SetDragonAura !== 'function') return;
+    const targetName = hasBuff('click frenzy') ? 'Dragon's Fortune' : 'Radiant Appetite';
+    const auras = Game.dragonAuras || {};
+    const target = Object.keys(auras).find(id => String(auras[id]?.name || '').toLowerCase() === targetName.toLowerCase());
+    if (target == null) return;
+    if (Number(Game.dragonAura) === Number(target)) return;
+    safe(() => Game.SetDragonAura(Number(target), 0), null, 'aura do dragão falhou');
   }
 
   // 34
   function manageSeason() {
     if (!gameReady() || !CONFIG.manageSeasons || isPaused()) return;
-    const season = Game.season;
-    if (!season && typeof Game.startSeason === 'function') {
-      safe(() => Game.startSeason('christmas'), null, 'temporada falhou');
+    if (Game.season || typeof Game.startSeason !== 'function') return;
+    for (const season of CONFIG.seasonPriority) {
+      if (!season) continue;
+      const started = safe(() => Game.startSeason(season), false, 'temporada falhou');
+      if (started !== false) break;
     }
   }
 
@@ -741,7 +781,7 @@
   window[GLOBAL_KEY] = api();
   window.CookieBotV5 = window[GLOBAL_KEY];
 
-  console.log('%c🍪 Cookie Clicker Bot V5.1.0 carregado', 'font-weight:bold;font-size:14px');
+  console.log('%c🍪 Cookie Clicker Bot V5.2.0 carregado', 'font-weight:bold;font-size:14px');
   console.log('Comandos: CookieBotV5.status(), .diagnostics(), .pause(), .resume(), .stop(), .emergencyStop(), .config({...})');
   CookieBotV5.start();
 })();
