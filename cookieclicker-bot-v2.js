@@ -322,7 +322,7 @@ const BOT = (() => {
     if (!jogoOk() || !CONFIG.estourarWrinklers || estado.pausado) return;
     if (!Game.wrinklers) return;
 
-    const ativos = Game.wrinklers.filter(w => w.phase === 2); // fase 2 = gordinho
+    const ativos = Game.wrinklers.filter(w => w.phase > 0 && w.sucked > 0);
     const gordos  = ativos.filter(w => w.sucked > 0);
 
     // Se temos mais wrinklers gordos do que queremos manter, estouramos os extras
@@ -535,9 +535,9 @@ const BOT = (() => {
   function calcularGanhoPrestigio() {
     if (!jogoOk()) return 0;
     try {
-      const totalCookies = Game.cookiesReset + Game.cookiesEarned;
+      const totalCookies = (Game.cookiesReset || 0) + (Game.cookiesEarned || 0);
       const chipsPotenciais = Game.HowMuchPrestige(totalCookies);
-      return chipsPotenciais - Game.prestige;
+      return Math.max(0, Math.floor(chipsPotenciais - (Game.prestige || 0)));
     } catch(e) {
       return 0;
     }
