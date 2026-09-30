@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '5.0.0';
+  const VERSION = '5.1.0';
   const GLOBAL_KEY = '__COOKIE_CLICKER_BOT_V5__';
 
   // ============================================================
@@ -73,6 +73,7 @@
     ascending: false,
     clickTimer: null,
     timers: new Set(),
+    timeouts: new Set(),
     startedAt: 0,
     cookiesAtStart: 0,
     lastCookies: 0,
@@ -156,6 +157,14 @@
     }
     state.timers.forEach(id => clearInterval(id));
     state.timers.clear();
+    state.timeouts.forEach(id => clearTimeout(id));
+    state.timeouts.clear();
+  }
+
+  // 07
+  function registerTimeout(id) {
+    if (id) state.timeouts.add(id);
+    return id;
   }
 
   // 07
@@ -359,10 +368,10 @@
       Game.Ascend(1);
       state.stats.ascensions++;
       state.lastPrestige = gain;
-      setTimeout(() => {
+      registerTimeout(setTimeout(() => {
         buyHeavenlyUpgrades();
         if (CONFIG.autoReincarnate && typeof Game.Reincarnate === 'function') {
-          setTimeout(() => {
+          registerTimeout(setTimeout(() => {
             safe(() => {
               Game.Reincarnate(1);
               state.stats.reincarnations++;
@@ -370,12 +379,12 @@
               startClicker();
               log('info', '♻️ Reencarnação concluída.');
             }, null, 'reencarnação falhou');
-          }, CONFIG.postAscensionDelayMs);
+          }, CONFIG.postAscensionDelayMs));
         } else {
           state.ascending = false;
           startClicker();
         }
-      }, CONFIG.postAscensionDelayMs);
+      }, CONFIG.postAscensionDelayMs));
       return true;
     }, false, 'ascensão falhou');
   }
@@ -565,7 +574,7 @@
   // 39
   function resetStats() {
     Object.keys(state.stats).forEach(key => { state.stats[key] = 0; });
-    state.cookiesAtStart = Number(Game?.cookies || 0);
+    state.cookiesAtStart = Number(typeof Game !== 'undefined' ? Game.cookies || 0 : 0);
     state.startedAt = Date.now();
     log('info', '♻️ Estatísticas resetadas.');
   }
@@ -682,17 +691,18 @@
 
   // 48
   function diagnostics() {
+    const gameExists = typeof Game !== 'undefined' && !!Game;
     const report = {
       gameReady: gameReady(),
-      hasShimmers: !!Game?.shimmers,
-      buildings: Array.isArray(Game?.ObjectsById) ? Game.ObjectsById.length : 0,
-      upgrades: Array.isArray(Game?.UpgradesInStore) ? Game.UpgradesInStore.length : 0,
-      wrinklers: Array.isArray(Game?.wrinklers) ? Game.wrinklers.length : 0,
-      wizardTower: !!Game?.Objects?.['Wizard tower']?.minigame,
-      farm: !!Game?.Objects?.Farm?.minigame,
-      bank: !!Game?.Objects?.Bank?.minigame,
-      temple: !!Game?.Objects?.Temple?.minigame,
-      dragonLevel: Number(Game?.dragonLevel || 0)
+      hasShimmers: gameExists && !!Game.shimmers,
+      buildings: gameExists && Array.isArray(Game.ObjectsById) ? Game.ObjectsById.length : 0,
+      upgrades: gameExists && Array.isArray(Game.UpgradesInStore) ? Game.UpgradesInStore.length : 0,
+      wrinklers: gameExists && Array.isArray(Game.wrinklers) ? Game.wrinklers.length : 0,
+      wizardTower: gameExists && !!Game.Objects?.['Wizard tower']?.minigame,
+      farm: gameExists && !!Game.Objects?.Farm?.minigame,
+      bank: gameExists && !!Game.Objects?.Bank?.minigame,
+      temple: gameExists && !!Game.Objects?.Temple?.minigame,
+      dragonLevel: gameExists ? Number(Game.dragonLevel || 0) : 0
     };
     console.table(report);
     return report;
@@ -731,7 +741,7 @@
   window[GLOBAL_KEY] = api();
   window.CookieBotV5 = window[GLOBAL_KEY];
 
-  console.log('%c🍪 Cookie Clicker Bot V5.0.0 carregado', 'font-weight:bold;font-size:14px');
+  console.log('%c🍪 Cookie Clicker Bot V5.1.0 carregado', 'font-weight:bold;font-size:14px');
   console.log('Comandos: CookieBotV5.status(), .diagnostics(), .pause(), .resume(), .stop(), .emergencyStop(), .config({...})');
   CookieBotV5.start();
 })();
