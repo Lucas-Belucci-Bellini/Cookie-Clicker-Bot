@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '5.3.0';
+  const VERSION = '5.4.0';
   const GLOBAL_KEY = '__COOKIE_CLICKER_BOT_V5__';
 
   // ============================================================
@@ -32,6 +32,15 @@
 
     spendingLimit: 0.50,
     reserveCookies: 0,
+
+    economyEnabled: true,
+    reserveCookiesRatio: 0.10,
+    purchaseScoreThreshold: 0,
+    targetPaybackSeconds: 3600,
+    buffAggressionMultiplier: 1.35,
+    upgradeValueWeight: 1.20,
+    buildingValueWeight: 1.00,
+    reportIntervalMs: 1800000,
     prestigeThreshold: 100,
 
     clickGolden: true,
@@ -96,7 +105,9 @@
       ascensions: 0,
       heavenlyUpgrades: 0,
       reincarnations: 0,
-      errors: 0
+      errors: 0,
+      economicDecisions: 0,
+      reports: 0
     }
   };
 
@@ -338,6 +349,88 @@
   }
 
   // 20
+  function effectiveCookieReserve() {
+    const cookies = Number(Game.cookies || 0);
+    const ratio = Math.max(0, Math.min(0.95, Number(CONFIG.reserveCookiesRatio || 0)));
+    return Math.max(Number(CONFIG.reserveCookies || 0), cookies * ratio);
+  }
+
+  // 21
+  function economicScoreBuilding(building) {
+    if (!building) return -Infinity;
+    const price = getBuildingPrice(building);
+    const cps = getBuildingMarginalCps(building);
+    if (!Number.isFinite(price) || price <= 0 || cps <= 0) return -Infinity;
+    const payback = price / cps;
+    const cookies = Number(Game.cookies || 0);
+    const reserve = effectiveCookieReserve();
+    if (cookies - price < reserve) return -Infinity;
+    const affordability = Math.max(0, Math.min(1, (cookies - reserve) / price));
+    const buff = hasBuff('click frenzy') || hasBuff('elder frenzy') || hasBuff('frenzy')
+      ? Math.max(1, Number(CONFIG.buffAggressionMultiplier || 1)) : 1;
+    const paybackFactor = Math.max(0.05, Number(CONFIG.targetPaybackSeconds || 3600) / Math.max(1, payback));
+    return paybackFactor * affordability * buff * Number(CONFIG.buildingValueWeight || 1);
+  }
+
+  // 22
+  function economicScoreUpgrade(upgrade) {
+    if (!upgrade || upgrade.bought) return -Infinity;
+    const price = safe(() => Number(upgrade.getPrice()), Infinity, 'preço de upgrade inválido');
+    const cookies = Number(Game.cookies || 0);
+    const reserve = effectiveCookieReserve();
+    if (!Number.isFinite(price) || price <= 0 || cookies - price < reserve) return -Infinity;
+    let value = 1;
+    const desc = String(upgrade.desc || upgrade.name || '').toLowerCase();
+    if (desc.includes('cookies per second') || desc.includes('cps') || desc.includes('cookie')) value += 1;
+    if (desc.includes('click')) value += 0.5;
+    if (hasBuff('click frenzy') && desc.includes('click')) value *= Number(CONFIG.buffAggressionMultiplier || 1);
+    const affordability = Math.max(0, Math.min(1, (cookies - reserve) / price));
+    return (value * affordability / Math.max(1, price)) * 1e6 * Number(CONFIG.upgradeValueWeight || 1);
+  }
+
+  // 23
+  function chooseEconomicAction() {
+    if (!gameReady() || isPaused() || !CONFIG.economyEnabled) return null;
+    const candidates = [];
+    (Game.UpgradesInStore || []).forEach(upgrade => {
+      const score = economicScoreUpgrade(upgrade);
+      if (Number.isFinite(score)) candidates.push({ type: 'upgrade', target: upgrade, score });
+    });
+    (Game.ObjectsById || []).forEach(building => {
+      if (!building || building.locked) return;
+      const score = economicScoreBuilding(building);
+      if (Number.isFinite(score)) candidates.push({ type: 'building', target: building, score });
+    });
+    candidates.sort((a, b) => b.score - a.score);
+    const best = candidates[0] || null;
+    return best && best.score >= Number(CONFIG.purchaseScoreThreshold || 0) ? best : null;
+  }
+
+  // 24
+  function executeEconomicAction() {
+    const choice = chooseEconomicAction();
+    if (!choice) return false;
+    return safe(() => {
+      if (choice.type === 'upgrade') {
+        if (typeof choice.target.buy !== 'function' || choice.target.bought) return false;
+        choice.target.buy(1);
+        state.stats.upgrades++;
+        state.stats.purchases++;
+        state.stats.economicDecisions++;
+        state.lastAction = 'economy:upgrade:' + choice.target.name;
+        return true;
+      }
+      if (typeof choice.target.buy !== 'function') return false;
+      choice.target.buy(1);
+      state.stats.buildings++;
+      state.stats.purchases++;
+      state.stats.economicDecisions++;
+      state.lastAction = 'economy:building:' + choice.target.name;
+      return true;
+    }, false, 'decisão econômica falhou');
+  }
+
+  // 25
   function buyBestBuilding() {
     if (!gameReady() || isPaused()) return false;
     let best = null;
@@ -385,9 +478,13 @@
     return bought;
   }
 
-  // 22
+  // 31
   function purchaseCycle() {
     if (!gameReady() || isPaused()) return;
+    if (CONFIG.economyEnabled) {
+      executeEconomicAction();
+      return;
+    }
     buyStoreUpgrades();
     buyBestBuilding();
   }
@@ -758,6 +855,7 @@
       }
     }, 1000));
     if (CONFIG.periodicStatus) registerTimer(setInterval(showStatus, CONFIG.statusScanMs));
+    registerTimer(setInterval(periodicReport, CONFIG.reportIntervalMs));
     registerTimer(setInterval(saveState, 30000));
 
     window.addEventListener('keydown', handleKey);
@@ -801,7 +899,51 @@
     log('warn', '🛑 PARADA DE EMERGÊNCIA executada.');
   }
 
-  // 50
+  // 57
+  function economicReport() {
+    if (!gameReady()) return null;
+    const choice = chooseEconomicAction();
+    const report = {
+      generatedAt: new Date().toISOString(),
+      cookies: Number(Game.cookies || 0),
+      cps: Number(Game.cookiesPs || 0),
+      reserve: effectiveCookieReserve(),
+      spendingLimit: CONFIG.spendingLimit,
+      reserveRatio: CONFIG.reserveCookiesRatio,
+      economyEnabled: CONFIG.economyEnabled,
+      buffActive: hasBuff('frenzy') || hasBuff('click frenzy') || hasBuff('elder frenzy'),
+      recommendedAction: choice ? { type: choice.type, name: choice.target?.name || 'desconhecido', score: choice.score } : null,
+      decisions: state.stats.economicDecisions
+    };
+    console.group('🧠 Cookie Bot V5.4 — Relatório Econômico');
+    console.table(report);
+    console.groupEnd();
+    return report;
+  }
+
+  // 58
+  function periodicReport() {
+    if (!state.active || state.paused) return;
+    state.stats.reports++;
+    const snapshot = sessionSnapshot();
+    const economy = economicReport();
+    console.group('🍪 Cookie Clicker Bot V5.4 — Relatório de 30 minutos');
+    console.table({
+      versão: VERSION,
+      cookies: snapshot?.cookies ?? Number(Game.cookies || 0),
+      cps: snapshot?.cps ?? Number(Game.cookiesPs || 0),
+      compras: state.stats.purchases,
+      decisõesEconômicas: state.stats.economicDecisions,
+      ascensões: state.stats.ascensions,
+      prestígioDisponível: prestigeGain(),
+      erros: state.stats.errors,
+      últimaAção: state.lastAction || 'nenhuma'
+    });
+    console.log('Relatório econômico:', economy);
+    console.groupEnd();
+  }
+
+  // 59
   function diagnostics() {
     const gameExists = typeof Game !== 'undefined' && !!Game;
     const capabilities = detectCapabilities();
@@ -844,6 +986,8 @@
       start, stop, pause, resume, emergencyStop,
       status: showStatus,
       diagnostics,
+      economicReport,
+      periodicReport,
       capabilities: detectCapabilities,
       capability,
       resetStats,
