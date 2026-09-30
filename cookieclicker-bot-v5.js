@@ -546,7 +546,7 @@
     if (!Game.specialTab || !Game.specialTab.click) return;
     const dragon = Number(Game.dragonLevel || 0);
     if (dragon < 5 || typeof Game.SetDragonAura !== 'function') return;
-    const targetName = hasBuff('click frenzy') ? 'Dragon's Fortune' : 'Radiant Appetite';
+    const targetName = hasBuff('click frenzy') ? "Dragon's Fortune" : "Radiant Appetite";
     const auras = Game.dragonAuras || {};
     const target = Object.keys(auras).find(id => String(auras[id]?.name || '').toLowerCase() === targetName.toLowerCase());
     if (target == null) return;
