@@ -377,3 +377,57 @@ CookieBotV5.capability('garden')
 O objetivo desta camada é fazer a V5 degradar de forma mais segura quando uma API interna do Cookie Clicker estiver ausente ou diferente, em vez de assumir que todos os minigames existem.
 
 > A V5.3 continua sendo uma revisão estática do código. A matriz de compatibilidade precisa ser conferida no runtime real do Cookie Clicker para validar o comportamento de cada API.
+
+
+## V5.4 — Motor econômico e relatório periódico
+
+A V5.4 adiciona um **motor de decisão econômica** que deixa de tratar compras como uma simples fila de upgrades + edifícios.
+
+### Motor econômico
+
+- calcula reserva dinâmica de cookies por percentual e reserva absoluta;
+- estima o payback de edifícios usando preço atual e CpS marginal;
+- compara upgrades e edifícios candidatos antes de gastar;
+- considera capacidade de pagamento e custo de oportunidade;
+- aumenta a agressividade durante buffs como Frenzy/Click Frenzy/Elder Frenzy;
+- registra quantas decisões foram tomadas pelo motor econômico;
+- pode ser desligado com `CookieBotV5.config({ economyEnabled: false })`.
+
+Configurações novas:
+
+- `economyEnabled`
+- `reserveCookiesRatio`
+- `purchaseScoreThreshold`
+- `targetPaybackSeconds`
+- `buffAggressionMultiplier`
+- `upgradeValueWeight`
+- `buildingValueWeight`
+- `reportIntervalMs` — padrão: **1.800.000 ms (30 minutos)**.
+
+### Relatório no console a cada 30 minutos
+
+Enquanto a V5 estiver ativa, o bot publica automaticamente um relatório agrupado no console do navegador com:
+
+- cookies atuais e CpS;
+- quantidade de compras;
+- decisões econômicas;
+- ascensões;
+- prestígio disponível;
+- erros acumulados;
+- última ação executada;
+- recomendação econômica atual e respectivo score.
+
+Também é possível gerar manualmente:
+
+```js
+CookieBotV5.periodicReport()
+CookieBotV5.economicReport()
+```
+
+O intervalo pode ser alterado, por exemplo:
+
+```js
+CookieBotV5.config({ reportIntervalMs: 600000 }) // 10 minutos
+```
+
+> A V5.4 continua sendo uma implementação para o runtime real do Cookie Clicker e precisa de validação dentro do jogo. O relatório periódico e o motor econômico foram adicionados estaticamente ao código; não foram considerados testes de runtime até serem executados no Cookie Clicker.
