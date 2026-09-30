@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.8.0';
+  const VERSION = '6.9.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -74,6 +74,10 @@
     dragonPreferClickFrenzy: true,
     seasonsEnabled: false,
     seasonPriority: ['christmas', 'halloween', 'easter', 'valentines', 'fools'],
+    sugarLumpsEnabled: false,
+    sugarLumpMinTime: 0,
+    sugarLumpMode: 'harvest',
+
 
     logging: true
   };
@@ -109,6 +113,7 @@
       pantheonChanges: 0,
       dragonAuraChanges: 0,
       seasonsStarted: 0,
+      sugarLumpsHarvested: 0,
       errors: 0,
       ticks: 0
     }
@@ -936,6 +941,28 @@
     return false;
   }
 
+  function sugarLumpReady() {
+    if (!gameReady()) return false;
+    if (typeof Game.canLumps === 'function' && !Game.canLumps()) return false;
+    const lumpTime = Number(Game.lumpT || 0);
+    const minimum = Math.max(0, Number(CONFIG.sugarLumpMinTime) || 0);
+    return lumpTime > minimum;
+  }
+
+  function manageSugarLump() {
+    if (!CONFIG.sugarLumpsEnabled || isPaused() || !gameReady()) return false;
+    if (!sugarLumpReady() || typeof Game.clickLump !== 'function') return false;
+
+    if (CONFIG.sugarLumpMode !== 'harvest') return false;
+
+    return safe(() => {
+      Game.clickLump();
+      state.stats.sugarLumpsHarvested++;
+      state.lastAction = 'sugar-lump:harvest';
+      return true;
+    }, false, 'Sugar Lump falhou');
+  }
+
   function moduleStatus() {
     if (!gameExists()) return {};
     const wizard = Game.Objects && Game.Objects['Wizard tower'];
@@ -952,7 +979,8 @@
       market: !!(bank && bank.minigame),
       pantheon: !!(temple && temple.minigame && typeof temple.minigame.slotGod === 'function'),
       dragon: typeof Game.SetDragonAura === 'function' && Number(Game.dragonLevel || 0) >= 5,
-      seasons: typeof Game.startSeason === 'function'
+      seasons: typeof Game.startSeason === 'function',
+      sugarLumps: typeof Game.clickLump === 'function' && typeof Game.canLumps === 'function'
     };
   }
 
@@ -1114,6 +1142,7 @@
     if (CONFIG.pantheonEnabled) addTimer('pantheon', CONFIG.purchaseMs, managePantheon);
     if (CONFIG.dragonEnabled) addTimer('dragon', CONFIG.purchaseMs, manageDragon);
     if (CONFIG.seasonsEnabled) addTimer('season', CONFIG.purchaseMs, manageSeason);
+    if (CONFIG.sugarLumpsEnabled) addTimer('sugarLump', CONFIG.purchaseMs, manageSugarLump);
   }
 
   function stop() {
@@ -1215,6 +1244,8 @@
       findDragonAura,
       manageDragon,
       manageSeason,
+      sugarLumpReady,
+      manageSugarLump,
       ascensionAnalysis,
       upgradeStatProfile,
       moduleStatus
