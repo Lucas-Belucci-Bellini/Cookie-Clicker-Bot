@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '5.5.0';
+  const VERSION = '5.6.0';
   const GLOBAL_KEY = '__COOKIE_CLICKER_BOT_V5__';
 
   // ============================================================
@@ -44,6 +44,9 @@
     prestigeThreshold: 100,
     historyMaxEntries: 96,
     historyEnabled: true,
+    schedulerIntervalMs: 1000,
+    watchdogIntervalMs: 10000,
+    watchdogGraceMs: 15000,
 
     clickGolden: true,
     clickWrath: true,
@@ -110,7 +113,9 @@
       errors: 0,
       economicDecisions: 0,
       reports: 0,
-      economicNoops: 0
+      economicNoops: 0,
+      watchdogRestarts: 0,
+      schedulerTicks: 0
     }
   };
 
@@ -845,6 +850,95 @@
   }
 
   // 45
+  // 68
+  function operationalState() {
+    if (!state.active) return 'IDLE';
+    if (state.paused) return 'PAUSED';
+    if (state.ascending) return 'ASCENDING';
+    if (hasBuff('click frenzy') || hasBuff('elder frenzy')) return 'BUFF_ACTIVE';
+    return 'RUNNING';
+  }
+
+  // 69
+  function registerTask(name, intervalMs, priority, handler) {
+    if (!name || typeof handler !== 'function') return false;
+    state.schedulerTasks.set(name, { name, intervalMs: Math.max(100, intervalMs), priority: Number(priority || 0), handler });
+    state.taskLastRun.set(name, 0);
+    return true;
+  }
+
+  // 70
+  function schedulerTick() {
+    if (!state.active || state.paused) return;
+    state.stats.schedulerTicks++;
+    const now = Date.now();
+    const tasks = [...state.schedulerTasks.values()].sort((a, b) => b.priority - a.priority);
+    for (const task of tasks) {
+      const last = state.taskLastRun.get(task.name) || 0;
+      if (now - last < task.intervalMs) continue;
+      try {
+        task.handler();
+        state.taskLastRun.set(task.name, now);
+        state.taskFailures.set(task.name, 0);
+      } catch (error) {
+        const failures = (state.taskFailures.get(task.name) || 0) + 1;
+        state.taskFailures.set(task.name, failures);
+        state.stats.errors++;
+        log('error', 'Falha na tarefa ' + task.name, error);
+      }
+    }
+  }
+
+  // 71
+  function watchdogTick() {
+    if (!state.active) return;
+    const now = Date.now();
+    const grace = Math.max(5000, Number(CONFIG.watchdogGraceMs || 15000));
+    for (const task of state.schedulerTasks.values()) {
+      const last = state.taskLastRun.get(task.name) || 0;
+      if (now - last > task.intervalMs + grace) {
+        state.stats.watchdogRestarts++;
+        state.taskLastRun.set(task.name, now);
+        log('warn', 'Watchdog recuperou a tarefa: ' + task.name);
+      }
+    }
+  }
+
+  // 72
+  function startScheduler() {
+    if (state.schedulerTimer) clearInterval(state.schedulerTimer);
+    if (state.watchdogTimer) clearInterval(state.watchdogTimer);
+    state.schedulerTimer = setInterval(schedulerTick, Math.max(100, Number(CONFIG.schedulerIntervalMs || 1000)));
+    state.watchdogTimer = setInterval(watchdogTick, Math.max(5000, Number(CONFIG.watchdogIntervalMs || 10000)));
+    return true;
+  }
+
+  // 73
+  function stopScheduler() {
+    if (state.schedulerTimer) clearInterval(state.schedulerTimer);
+    if (state.watchdogTimer) clearInterval(state.watchdogTimer);
+    state.schedulerTimer = null;
+    state.watchdogTimer = null;
+    return true;
+  }
+
+  // 74
+  function configureScheduler() {
+    state.schedulerTasks.clear();
+    registerTask('shimmers', CONFIG.shimmerScanMs, 100, clickShimmers);
+    registerTask('purchases', CONFIG.purchaseScanMs, 80, purchaseCycle);
+    registerTask('wrinklers', CONFIG.wrinklerScanMs, 70, manageWrinklers);
+    registerTask('grimoire', CONFIG.grimoireScanMs, 60, castGrimoire);
+    registerTask('garden', CONFIG.gardenScanMs, 50, gardenCycle);
+    registerTask('market', CONFIG.marketScanMs, 40, manageMarket);
+    registerTask('pantheon', CONFIG.pantheonScanMs, 30, managePantheon);
+    registerTask('dragon', CONFIG.dragonScanMs, 20, manageDragon);
+    registerTask('season', CONFIG.seasonScanMs, 15, manageSeason);
+    registerTask('sugarLump', CONFIG.sugarLumpScanMs, 10, manageSugarLump);
+    return state.schedulerTasks.size;
+  }
+
+  // 75
   function start() {
     if (!gameReady()) {
       console.warn('[🍪 BOT V5] Aguarde o Cookie Clicker carregar.');
@@ -854,6 +948,8 @@
     loadState();
     state.active = true;
     state.paused = false;
+    configureScheduler();
+    startScheduler();
     state.ascending = false;
     state.startedAt = Date.now();
     state.cookiesAtStart = Number(Game.cookies || 0);
@@ -1070,6 +1166,10 @@
       economicReport,
       periodicReport,
       performanceHistory,
+      operationalState,
+      configureScheduler,
+      startScheduler,
+      stopScheduler,
       clearHistory,
       capabilities: detectCapabilities,
       capability,
