@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.17.0';
+  const VERSION = '6.18.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -50,6 +50,9 @@
     reserveCookiesRatio: 0.10,
     economyEnabled: true,
     targetPaybackSeconds: 3600,
+    upgradeMaxPaybackSeconds: 7200,
+    estimatedClicksPerSecond: 10,
+    upgradeClickValueWeight: 0.25,
     upgradeValueWeight: 1.2,
     buildingValueWeight: 1,
     historyEnabled: true,
@@ -848,7 +851,11 @@
     const statisticalWeight = cleanObservations.length
       ? Math.min(maxStatisticalWeight, 0.15 + cleanObservations.length * 0.05)
       : 0;
-    const expectedGainPerSecond = estimatedCpsGain * (1 - statisticalWeight) +
+    const clickConversionRate = Math.max(0, Number(CONFIG.estimatedClicksPerSecond) || 10);
+    const clickValueWeight = Math.max(0, Number(CONFIG.upgradeClickValueWeight) || 0.25);
+    const estimatedTotalGainPerSecond = estimatedCpsGain +
+      estimatedClickGain * clickConversionRate * clickValueWeight;
+    const expectedGainPerSecond = estimatedTotalGainPerSecond * (1 - statisticalWeight) +
       observedAverage * statisticalWeight;
     const paybackSeconds = price > 0 && expectedGainPerSecond > 0
       ? price / expectedGainPerSecond
@@ -856,7 +863,8 @@
     const budget = economicBudget();
     const affordableNow = Number.isFinite(price) && price > 0 && price <= budget;
     const paybackTarget = Math.max(1, Number(CONFIG.targetPaybackSeconds) || 3600);
-    const worthIt = affordableNow && expectedGainPerSecond > 0 && paybackSeconds <= paybackTarget * 2;
+    const maxPayback = Math.max(paybackTarget, Number(CONFIG.upgradeMaxPaybackSeconds) || paybackTarget * 2);
+    const worthIt = affordableNow && expectedGainPerSecond > 0 && paybackSeconds <= maxPayback;
     const affordability = price > 0 && Number.isFinite(price)
       ? Math.max(0, Math.min(1, budget / price))
       : 0;
@@ -868,8 +876,10 @@
     state.stats.upgradeAnalyses = (state.stats.upgradeAnalyses || 0) + 1;
     return {
       price, estimatedCpsGain, estimatedClickGain, utilityScore,
-      expectedGainPerSecond, observedAverage, observations: observations.length, cleanObservations: cleanObservations.length,
-      statisticalWeight, paybackSeconds, affordableNow, worthIt, score,
+      expectedGainPerSecond, estimatedTotalGainPerSecond, observedAverage,
+      observations: observations.length, cleanObservations: cleanObservations.length,
+      statisticalWeight, paybackSeconds, paybackTarget, maxPayback,
+      clickConversionRate, clickValueWeight, affordableNow, worthIt, score,
       signals: keywordSignals
     };
   }
