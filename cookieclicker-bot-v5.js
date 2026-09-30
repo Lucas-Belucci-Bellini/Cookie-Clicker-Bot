@@ -863,7 +863,7 @@
   window[GLOBAL_KEY] = api();
   window.CookieBotV5 = window[GLOBAL_KEY];
 
-  console.log('%c🍪 Cookie Clicker Bot V5.2.0 carregado', 'font-weight:bold;font-size:14px');
+  console.log('%c🍪 Cookie Clicker Bot V' + VERSION + ' carregado', 'font-weight:bold;font-size:14px');
   console.log('Comandos: CookieBotV5.status(), .diagnostics(), .pause(), .resume(), .stop(), .emergencyStop(), .config({...})');
   CookieBotV5.start();
 })();
