@@ -618,3 +618,27 @@ Antes, detectar uma tarefa como `STALE` incrementava `healthRecoveries` mesmo se
 Isso deixa os números de saúde mais confiáveis para diagnosticar o bot.
 
 > Validação: estrutura do código verificada no GitHub. Não houve execução dentro de uma sessão real do Cookie Clicker.
+
+
+## V6.20 — Recuperação controlada de falha de ascensão
+
+A V6.20 adiciona `recoverAscensionFailure()`.
+
+Quando uma ascensão entra em `FAILED`, o bot não tenta automaticamente repetir a operação. A nova função permite reconhecer a falha e retornar o estado para `READY` de forma controlada.
+
+Fluxo:
+
+`FAILED → READY`
+
+A recuperação:
+
+- exige que o Cookie Clicker esteja disponível;
+- limpa o snapshot da ascensão anterior;
+- encerra o estado `ascending`;
+- remove o erro atual;
+- reconfigura os timers;
+- não dispara uma nova ascensão automaticamente.
+
+A função fica disponível pela API como `CookieBotV6.recoverAscensionFailure()`.
+
+> Validação: estrutura do código verificada no GitHub. Não houve execução dentro de uma sessão real do Cookie Clicker.
