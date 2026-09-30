@@ -171,14 +171,19 @@ function verificarAscensao() {
   if (!jogoCarregado()) return;
 
   // Níveis de prestígio que seriam ganhos ao ascender agora
-  const prestigioDisponivel = Game.prestige - Game.Achievements["Transcendence"]
-    ? 0
-    : 0; // Fallback seguro
+  // O valor correto é o ganho líquido de prestígio disponível.
+  // A expressão antiga sempre resultava em 0 e tornava esta variável inútil.
+  const prestigioDisponivel = Math.max(
+    0,
+    Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned) - Game.prestige
+  );
 
-  // Maneira mais confiável: calcular via HeavenlyChips
-  const chipsPotenciais = Game.HowMuchPrestige(Game.cookiesReset + Game.cookiesEarned);
-  const chipsAtuais = Game.prestige;
-  const ganhoLiquido = chipsPotenciais - chipsAtuais;
+  // Maneira mais confiável: usar o mesmo cálculo para decidir a ascensão
+  const chipsPotenciais = Game.HowMuchPrestige(
+    (Game.cookiesReset || 0) + (Game.cookiesEarned || 0)
+  );
+  const chipsAtuais = Game.prestige || 0;
+  const ganhoLiquido = Math.max(0, chipsPotenciais - chipsAtuais);
 
   if (ganhoLiquido >= CONFIG.prestigioParaAscender) {
     log(`✨ Iniciando ascensão! Ganho de prestígio: ${ganhoLiquido}`);
@@ -253,6 +258,11 @@ function formatarNumero(n) {
 const INTERVALOS = [];
 
 function iniciarBot() {
+  if (window.__COOKIE_CLICKER_BOT_V1__) {
+    window.__COOKIE_CLICKER_BOT_V1__.parar();
+  }
+  window.__COOKIE_CLICKER_BOT_V1__ = { parar: pararBot };
+  
   if (!jogoCarregado()) {
     console.warn("[🍪 BOT] Aguarde o Cookie Clicker carregar completamente antes de rodar o bot.");
     return;
