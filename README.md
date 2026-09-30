@@ -582,3 +582,23 @@ Novas configurações:
 - `watchdogRecoveryCooldownMs: 15000`
 
 > Validação: estrutura do código verificada no GitHub. Não houve execução dentro de uma sessão real do Cookie Clicker.
+
+
+## V6.18 — Payback econômico refinado
+
+A V6.18 melhora a avaliação econômica dos upgrades.
+
+- upgrades de clique passam a ter uma conversão configurável para valor econômico por segundo;
+- o cálculo separa ganho estimado total de ganho observado;
+- o limite máximo de payback deixa de ser um multiplicador fixo escondido;
+- o relatório da análise passa a expor `paybackTarget`, `maxPayback`, `clickConversionRate` e `clickValueWeight`.
+
+Configurações novas:
+
+- `upgradeMaxPaybackSeconds: 7200`
+- `estimatedClicksPerSecond: 10`
+- `upgradeClickValueWeight: 0.25`
+
+Isso deixa explícito que o bot não deve comparar upgrades de CpS e upgrades de clique como se fossem exatamente a mesma coisa.
+
+> Validação: estrutura do código verificada no GitHub. Não houve execução dentro de uma sessão real do Cookie Clicker.
