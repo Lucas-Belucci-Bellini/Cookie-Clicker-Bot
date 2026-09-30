@@ -25,6 +25,32 @@ CookieBotV6.config({
 })
 ```
 
+## V6.12 — Ascensão robusta + análise estatística de upgrades
+
+A V6.12 fecha o primeiro ciclo de integração atacando diretamente os dois pontos que mais exigiam confiabilidade: a transição de ascensão e a escolha econômica de upgrades.
+
+### Ascensão robusta
+
+A ascensão agora possui fases explícitas:
+
+`READY` → `ASCENDING` → `RECOVERING` → `WAITING_REINCARNATION` → `READY`
+
+Quando `Game.Ascend()` é chamado, a V6 guarda um snapshot do estado anterior e faz uma verificação pós-ascensão antes de liberar a automação novamente. Se a transição não puder ser confirmada, o bot entra em `FAILED`, pausa e limpa os timers para não continuar operando em um estado inconsistente.
+
+Também foi adicionado um limite de **payback estimado da ascensão**, além do limite de recuperação já existente.
+
+### Upgrades com estatística + payback
+
+A seleção de upgrades deixou de ser simplesmente "o mais barato".
+
+`upgradeAnalysis()` combina preço, ganho estimado de CpS, ganho estimado de clique, sinais de multiplicadores/edifícios/kitten, orçamento disponível, payback estimado e observações reais de compras anteriores do mesmo upgrade.
+
+Após uma compra, a V6 registra o CpS antes/depois para alimentar futuras análises. Assim, a heurística inicial pode ser complementada por dados observados no próprio runtime.
+
+APIs novas/ajustadas: `upgradeAnalysis()`, `upgradeStatProfile()`, `verifyAscensionTransition()` e `ascensionAnalysis()`.
+
+As métricas continuam sendo estimativas, porque o efeito de alguns upgrades e a recuperação após ascensão dependem do estado real do Cookie Clicker.
+
 ## V6.11 — Health + Telemetry
 
 A V6.11 adiciona uma camada de saúde operacional e telemetria ao Scheduler.
