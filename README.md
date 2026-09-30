@@ -25,6 +25,57 @@ CookieBotV6.config({
 })
 ```
 
+## V6.8 — Dragon + Seasons
+
+A V6.8 reconstrói os módulos de **Dragon Aura** e **Seasons** e mantém ambos desligados por padrão.
+
+### Dragon
+
+O módulo:
+
+- verifica se o Dragon já atingiu o nível mínimo necessário;
+- descobre as auras disponíveis pela API do jogo;
+- evita trocar para a mesma aura repetidamente;
+- usa `Dragon's Fortune` durante Click Frenzy quando configurado;
+- usa `Radiant Appetite` como padrão fora de Click Frenzy;
+- permite uma aura personalizada por configuração;
+- registra cada troca.
+
+Configuração:
+
+```js
+CookieBotV6.config({
+  dragonEnabled: true,
+  dragonPreferClickFrenzy: true,
+  dragonAura: 'Radiant Appetite'
+})
+```
+
+### Seasons
+
+O módulo de Seasons:
+
+- só executa quando habilitado;
+- não tenta iniciar outra temporada se uma já estiver ativa;
+- usa uma lista de prioridade configurável;
+- registra a temporada iniciada;
+- usa `Game.startSeason()` somente quando a API existe.
+
+Configuração:
+
+```js
+CookieBotV6.config({
+  seasonsEnabled: true,
+  seasonPriority: ['christmas', 'halloween', 'easter', 'valentines', 'fools']
+})
+```
+
+APIs adicionadas: `dragonAuras()`, `findDragonAura()`, `manageDragon()` e `manageSeason()`.
+
+### Correção adicional do Pantheon
+
+Durante a reconstrução da V6.8 também foi corrigida a referência do Temple/Pantheon: o módulo passou a procurar o minigame no índice correto de `Game.ObjectsById`, em vez da referência incorreta usada anteriormente.
+
 ## V6.7 — Ascensão inteligente, upgrades por estatística e Pantheon
 
 A V6.7 corrige dois pontos centrais da reconstrução: a decisão de ascensão agora calcula se o reset compensa antes de chamar `Game.Ascend()`, e a economia passa a estimar o valor dos upgrades por sinais estatísticos em vez de usar apenas preço/descrição genérica.
