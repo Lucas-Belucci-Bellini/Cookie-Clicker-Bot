@@ -461,3 +461,39 @@ Se uma integração opcional não existir, o núcleo continua funcionando.
 A V6 foi revisada estruturalmente e construída para depender apenas de APIs centrais conhecidas do runtime do Cookie Clicker. Ela ainda precisa ser executada dentro do Cookie Clicker para uma validação real de comportamento; uma revisão de código não substitui esse teste.
 
 As versões V1–V5.9 permanecem no repositório para comparação e preservação histórica.
+
+
+## V6.13 — Observações empíricas persistentes e janela de medição
+
+A V6.13 continua a reconstrução modular da V6 e melhora a parte estatística dos upgrades.
+
+### O que mudou
+
+- observações de upgrades agora são persistidas em `localStorage`;
+- a quantidade máxima de observações é configurável por `upgradeObservationMaxEntries`;
+- a compra não é mais tratada como evidência estatística imediatamente;
+- cada upgrade comprado cria uma observação pendente;
+- após `upgradeObservationWindowMs`, a V6 mede o CpS novamente;
+- o delta observado alimenta as próximas análises de upgrade;
+- o Scheduler ganhou a tarefa `upgradeObservations`;
+- durante a transição de ascensão, tarefas normais de automação ficam bloqueadas;
+- o clique automático também respeita `ascensionPhase`;
+- `operationalState()` passa a expor estados como `ASCENDING`, `RECOVERING` e `WAITING_REINCARNATION`.
+
+### Novas configurações
+
+- `upgradeObservationWindowMs: 5000`
+- `upgradeObservationMaxEntries: 96`
+
+### Novas APIs
+
+- `upgradeObservationKey()`
+- `loadUpgradeObservations()`
+- `saveUpgradeObservations()`
+- `finalizeUpgradeObservations()`
+
+### Objetivo
+
+A V6 passa a separar **estimativa** de **observação real**. O motor econômico ainda usa heurísticas para decidir imediatamente, mas pode acumular evidência de execuções anteriores para ajustar o valor esperado dos upgrades.
+
+> Validação desta etapa: análise estrutural do código no GitHub. Não foi executada uma sessão real dentro do Cookie Clicker nesta etapa.
