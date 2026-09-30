@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.0.0';
+  const VERSION = '6.1.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -27,7 +27,10 @@
 
     // Mantido desligado por padrão: ascensão é uma ação irreversível no fluxo normal.
     autoAscend: false,
+    autoReincarnate: false,
+    buyHeavenlyUpgrades: true,
     prestigeThreshold: 100,
+    postAscensionDelayMs: 4000,
 
     // Estourar wrinklers por padrão também fica desligado.
     popWrinklers: false,
@@ -54,6 +57,8 @@
     lastAction: 'nenhuma',
     lastError: null,
     timers: new Map(),
+    timeouts: new Set(),
+    ascending: false,
     stats: {
       clicks: 0,
       shimmers: 0,
@@ -61,6 +66,8 @@
       buildings: 0,
       wrinklers: 0,
       ascensions: 0,
+      heavenlyUpgrades: 0,
+      reincarnations: 0,
       errors: 0,
       ticks: 0
     }
@@ -290,17 +297,75 @@
     }, 0, 'prestígio falhou');
   }
 
-  function tryAscend() {
-    if (!CONFIG.autoAscend || isPaused() || !gameReady()) return false;
-    if (prestigeGain() < Math.max(0, Number(CONFIG.prestigeThreshold))) return false;
+  function shouldAscend() {
+    return CONFIG.autoAscend && !state.ascending && !isPaused() &&
+      prestigeGain() >= Math.max(0, Number(CONFIG.prestigeThreshold));
+  }
+
+  function buyHeavenlyUpgrades() {
+    if (!gameReady() || !CONFIG.buyHeavenlyUpgrades || !Game.Upgrades) return 0;
+    let bought = 0;
+
+    Object.keys(Game.Upgrades).forEach(name => {
+      const upgrade = Game.Upgrades[name];
+      if (!upgrade || upgrade.bought || upgrade.pool !== 'prestige') return;
+
+      safe(() => {
+        if (typeof upgrade.canBuy === 'function' && upgrade.canBuy()) {
+          upgrade.buy();
+          bought++;
+          state.stats.heavenlyUpgrades++;
+          state.lastAction = 'heavenly-upgrade:' + String(upgrade.name || name);
+        }
+      }, null, 'upgrade celestial falhou: ' + name);
+    });
+
+    return bought;
+  }
+
+  function registerTimeout(name, delay, fn) {
+    const id = setTimeout(() => {
+      state.timeouts.delete(id);
+      safe(fn, null, name + ' falhou');
+    }, Math.max(0, Number(delay) || 0));
+    state.timeouts.add(id);
+    return id;
+  }
+
+  function performAscension() {
+    if (!gameReady() || state.ascending || !shouldAscend()) return false;
     if (typeof Game.Ascend !== 'function') return false;
+
+    state.ascending = true;
+    const gain = prestigeGain();
 
     return safe(() => {
       Game.Ascend(1);
       state.stats.ascensions++;
       state.lastAction = 'ascensão';
+
+      registerTimeout('pós-ascensão', CONFIG.postAscensionDelayMs, () => {
+        buyHeavenlyUpgrades();
+
+        if (CONFIG.autoReincarnate && typeof Game.Reincarnate === 'function') {
+          registerTimeout('reencarnação', CONFIG.postAscensionDelayMs, () => {
+            Game.Reincarnate(1);
+            state.stats.reincarnations++;
+            state.lastAction = 'reencarnação';
+            state.ascending = false;
+          });
+        } else {
+          state.ascending = false;
+        }
+      });
+
+      log('info', 'Ascensão executada com +' + String(gain) + ' prestígio.');
       return true;
     }, false, 'ascensão falhou');
+  }
+
+  function tryAscend() {
+    return performAscension();
   }
 
   function moduleStatus() {
@@ -394,6 +459,8 @@
   function clearAllTimers() {
     state.timers.forEach(id => clearInterval(id));
     state.timers.clear();
+    state.timeouts.forEach(id => clearTimeout(id));
+    state.timeouts.clear();
   }
 
   function report() {
@@ -432,6 +499,7 @@
     clearAllTimers();
     state.active = false;
     state.paused = false;
+    state.ascending = false;
     log('info', 'Bot parado.');
     return true;
   }
@@ -485,6 +553,9 @@
       report,
       config,
       prestigeGain,
+      shouldAscend,
+      buyHeavenlyUpgrades,
+      performAscension,
       clickCookie,
       clickShimmers,
       purchaseCycle,
