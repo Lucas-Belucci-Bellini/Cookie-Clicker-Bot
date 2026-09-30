@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.9.0';
+  const VERSION = '6.10.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -77,6 +77,9 @@
     sugarLumpsEnabled: false,
     sugarLumpMinTime: 0,
     sugarLumpMode: 'harvest',
+    schedulerIntervalMs: 1000,
+    watchdogIntervalMs: 10000,
+    watchdogGraceMs: 15000,
 
 
     logging: true
@@ -90,6 +93,12 @@
     lastAction: 'nenhuma',
     lastError: null,
     timers: new Map(),
+    schedulerTimer: null,
+    watchdogTimer: null,
+    schedulerTasks: new Map(),
+    taskLastRun: new Map(),
+    taskFailures: new Map(),
+    taskRunCount: new Map(),
     timeouts: new Set(),
     ascending: false,
     history: [],
@@ -980,7 +989,9 @@
       pantheon: !!(temple && temple.minigame && typeof temple.minigame.slotGod === 'function'),
       dragon: typeof Game.SetDragonAura === 'function' && Number(Game.dragonLevel || 0) >= 5,
       seasons: typeof Game.startSeason === 'function',
-      sugarLumps: typeof Game.clickLump === 'function' && typeof Game.canLumps === 'function'
+      sugarLumps: typeof Game.clickLump === 'function' && typeof Game.canLumps === 'function',
+      scheduler: !!state.schedulerTimer,
+      watchdog: !!state.watchdogTimer
     };
   }
 
@@ -1041,6 +1052,111 @@
     safe(fn, null, 'tarefa ' + name + ' falhou');
   }
 
+  function operationalState() {
+    if (!state.active) return 'IDLE';
+    if (state.paused) return 'PAUSED';
+    if (state.ascending) return 'ASCENDING';
+    if (hasBuff('click frenzy') || hasBuff('elder frenzy')) return 'BUFF_ACTIVE';
+    return 'RUNNING';
+  }
+
+  function registerTask(name, intervalMs, priority, handler) {
+    if (!name || typeof handler !== 'function') return false;
+    state.schedulerTasks.set(name, {
+      name,
+      intervalMs: Math.max(100, Number(intervalMs) || 1000),
+      priority: Number(priority) || 0,
+      handler
+    });
+    state.taskLastRun.set(name, 0);
+    state.taskFailures.set(name, 0);
+    state.taskRunCount.set(name, 0);
+    return true;
+  }
+
+  function runScheduledTask(task, now, recovery = false) {
+    const started = performance.now();
+    try {
+      task.handler();
+      const duration = performance.now() - started;
+      state.taskLastRun.set(task.name, now);
+      state.taskFailures.set(task.name, 0);
+      state.taskRunCount.set(task.name, (state.taskRunCount.get(task.name) || 0) + 1);
+      if (recovery) log('warn', 'Watchdog recuperou: ' + task.name);
+      return { ok: true, duration };
+    } catch (error) {
+      const failures = (state.taskFailures.get(task.name) || 0) + 1;
+      state.taskLastRun.set(task.name, now);
+      state.taskFailures.set(task.name, failures);
+      state.stats.errors++;
+      log('error', 'Falha na tarefa ' + task.name, error);
+      return { ok: false, failures };
+    }
+  }
+
+  function schedulerTick() {
+    if (!state.active || state.paused) return;
+    state.stats.schedulerTicks = (state.stats.schedulerTicks || 0) + 1;
+    const now = Date.now();
+    [...state.schedulerTasks.values()]
+      .sort((a, b) => b.priority - a.priority)
+      .forEach(task => {
+        const last = state.taskLastRun.get(task.name) || 0;
+        if (now - last >= task.intervalMs) runScheduledTask(task, now);
+      });
+  }
+
+  function watchdogTick() {
+    if (!state.active || state.paused) return;
+    const now = Date.now();
+    const grace = Math.max(5000, Number(CONFIG.watchdogGraceMs) || 15000);
+    for (const task of state.schedulerTasks.values()) {
+      const last = state.taskLastRun.get(task.name) || 0;
+      if (now - last > task.intervalMs + grace) {
+        state.stats.watchdogRestarts = (state.stats.watchdogRestarts || 0) + 1;
+        runScheduledTask(task, now, true);
+      }
+    }
+  }
+
+  function startScheduler() {
+    stopScheduler();
+    state.schedulerTimer = setInterval(schedulerTick, Math.max(100, Number(CONFIG.schedulerIntervalMs) || 1000));
+    state.watchdogTimer = setInterval(watchdogTick, Math.max(5000, Number(CONFIG.watchdogIntervalMs) || 10000));
+    return true;
+  }
+
+  function stopScheduler() {
+    if (state.schedulerTimer) clearInterval(state.schedulerTimer);
+    if (state.watchdogTimer) clearInterval(state.watchdogTimer);
+    state.schedulerTimer = null;
+    state.watchdogTimer = null;
+    return true;
+  }
+
+  function configureScheduler() {
+    state.schedulerTasks.clear();
+    state.taskLastRun.clear();
+    state.taskFailures.clear();
+    state.taskRunCount.clear();
+
+    registerTask('shimmers', CONFIG.shimmerMs, 100, clickShimmers);
+    registerTask('prestige', CONFIG.prestigeMs, 90, tryAscend);
+    registerTask('purchases', CONFIG.purchaseMs, 80, purchaseCycle);
+    registerTask('wrinklers', CONFIG.wrinklerMs, 70, manageWrinklers);
+    if (CONFIG.grimoireEnabled) registerTask('grimoire', CONFIG.shimmerMs, 60, castGrimoire);
+    if (CONFIG.gardenEnabled) registerTask('garden', CONFIG.purchaseMs, 50, gardenCycle);
+    if (CONFIG.marketEnabled) registerTask('market', CONFIG.purchaseMs, 40, manageMarket);
+    if (CONFIG.pantheonEnabled) registerTask('pantheon', CONFIG.purchaseMs, 30, managePantheon);
+    if (CONFIG.dragonEnabled) registerTask('dragon', CONFIG.purchaseMs, 20, manageDragon);
+    if (CONFIG.seasonsEnabled) registerTask('season', CONFIG.purchaseMs, 15, manageSeason);
+    if (CONFIG.sugarLumpsEnabled) registerTask('sugarLump', CONFIG.purchaseMs, 10, manageSugarLump);
+    registerTask('status', CONFIG.statusMs, 4, status);
+    registerTask('report', CONFIG.reportMs, 5, report);
+    registerTask('economicReport', CONFIG.reportMs, 5, economicReport);
+    return state.schedulerTasks.size;
+  }
+
   function addTimer(name, interval, fn) {
     removeTimer(name);
     const id = setInterval(() => runTask(name, fn), Math.max(50, Number(interval) || 1000));
@@ -1056,6 +1172,11 @@
   function clearAllTimers() {
     state.timers.forEach(id => clearInterval(id));
     state.timers.clear();
+    stopScheduler();
+    state.schedulerTasks.clear();
+    state.taskLastRun.clear();
+    state.taskFailures.clear();
+    state.taskRunCount.clear();
     state.timeouts.forEach(id => clearTimeout(id));
     state.timeouts.clear();
   }
@@ -1127,23 +1248,12 @@
 
   function configureTimers() {
     clearAllTimers();
-
+    // Clicks permanecem em timer próprio porque o scheduler trabalha em escala de segundos.
     addTimer('click', clickDelay(), clickCookie);
-    addTimer('shimmers', CONFIG.shimmerMs, clickShimmers);
-    addTimer('purchases', CONFIG.purchaseMs, purchaseCycle);
-    addTimer('wrinklers', CONFIG.wrinklerMs, manageWrinklers);
-    addTimer('prestige', CONFIG.prestigeMs, tryAscend);
-    addTimer('status', CONFIG.statusMs, status);
-    addTimer('report', CONFIG.reportMs, report);
-    addTimer('economicReport', CONFIG.reportMs, economicReport);
-    if (CONFIG.grimoireEnabled) addTimer('grimoire', CONFIG.shimmerMs, castGrimoire);
-    if (CONFIG.gardenEnabled) addTimer('garden', CONFIG.purchaseMs, gardenCycle);
-    if (CONFIG.marketEnabled) addTimer('market', CONFIG.purchaseMs, manageMarket);
-    if (CONFIG.pantheonEnabled) addTimer('pantheon', CONFIG.purchaseMs, managePantheon);
-    if (CONFIG.dragonEnabled) addTimer('dragon', CONFIG.purchaseMs, manageDragon);
-    if (CONFIG.seasonsEnabled) addTimer('season', CONFIG.purchaseMs, manageSeason);
-    if (CONFIG.sugarLumpsEnabled) addTimer('sugarLump', CONFIG.purchaseMs, manageSugarLump);
+    configureScheduler();
+    startScheduler();
   }
+
 
   function stop() {
     clearAllTimers();
@@ -1248,7 +1358,14 @@
       manageSugarLump,
       ascensionAnalysis,
       upgradeStatProfile,
-      moduleStatus
+      moduleStatus,
+      operationalState,
+      registerTask,
+      schedulerTick,
+      watchdogTick,
+      startScheduler,
+      stopScheduler,
+      configureScheduler
     };
   }
 
