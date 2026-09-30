@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.16.0';
+  const VERSION = '6.17.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -88,6 +88,8 @@
     schedulerIntervalMs: 1000,
     watchdogIntervalMs: 10000,
     watchdogGraceMs: 15000,
+    watchdogMaxRecoveryAttempts: 2,
+    watchdogRecoveryCooldownMs: 15000,
 
 
     logging: true
@@ -107,6 +109,8 @@
     taskLastRun: new Map(),
     taskFailures: new Map(),
     taskRunCount: new Map(),
+    taskRecoveryAttempts: new Map(),
+    taskLastRecovery: new Map(),
     taskDurationMs: new Map(),
     taskLastSuccess: new Map(),
     taskHealth: new Map(),
@@ -1348,6 +1352,8 @@
     state.taskLastRun.set(name, 0);
     state.taskFailures.set(name, 0);
     state.taskRunCount.set(name, 0);
+    state.taskRecoveryAttempts.set(name, 0);
+    state.taskLastRecovery.set(name, 0);
     return true;
   }
 
@@ -1407,8 +1413,22 @@
       if (transitionActive && !['health', 'status', 'upgradeObservations'].includes(task.name)) continue;
       const last = state.taskLastRun.get(task.name) || 0;
       if (now - last > task.intervalMs + grace) {
-        state.stats.watchdogRestarts = (state.stats.watchdogRestarts || 0) + 1;
-        runScheduledTask(task, now, true);
+        const attempts = state.taskRecoveryAttempts.get(task.name) || 0;
+        const lastRecovery = state.taskLastRecovery.get(task.name) || 0;
+        const cooldown = Math.max(5000, Number(CONFIG.watchdogRecoveryCooldownMs) || 15000);
+        if (attempts >= Math.max(1, Number(CONFIG.watchdogMaxRecoveryAttempts) || 2) &&
+            now - lastRecovery < cooldown) {
+          state.taskHealth.set(task.name, 'STALE');
+          continue;
+        }
+        const result = runScheduledTask(task, now, true);
+        state.taskLastRecovery.set(task.name, now);
+        if (result && result.ok) {
+          state.taskRecoveryAttempts.set(task.name, 0);
+          state.stats.watchdogRestarts = (state.stats.watchdogRestarts || 0) + 1;
+        } else {
+          state.taskRecoveryAttempts.set(task.name, attempts + 1);
+        }
       }
     }
   }
@@ -1433,6 +1453,8 @@
     state.taskLastRun.clear();
     state.taskFailures.clear();
     state.taskRunCount.clear();
+    state.taskRecoveryAttempts.clear();
+    state.taskLastRecovery.clear();
     state.taskDurationMs.clear();
     state.taskLastSuccess.clear();
     state.taskHealth.clear();
