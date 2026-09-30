@@ -369,7 +369,9 @@ const BOT = (() => {
 
     Game.ObjectsById.forEach(obj => {
       if (!obj || obj.locked) return;
-      const preco = obj.bulkPrice !== undefined ? obj.bulkPrice : obj.price;
+      const preco = typeof obj.getPrice === 'function'
+        ? obj.getPrice()
+        : (obj.bulkPrice !== undefined ? obj.bulkPrice : obj.price);
       if (preco > disp * CONFIG.limiteGastoUnico) return;
 
       const ganho = ganhoCpSdaProximaUnidade(obj);
@@ -697,7 +699,7 @@ const BOT = (() => {
     try {
       const total = (Game.cookiesReset || 0) + (Game.cookiesEarned || 0);
       const chips = Game.HowMuchPrestige(total);
-      return Math.floor(chips - Game.prestige);
+      return Math.max(0, Math.floor(chips - (Game.prestige || 0)));
     } catch (e) { return 0; }
   }
 
