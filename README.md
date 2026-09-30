@@ -25,6 +25,67 @@ CookieBotV6.config({
 })
 ```
 
+## V6.7 — Ascensão inteligente, upgrades por estatística e Pantheon
+
+A V6.7 corrige dois pontos centrais da reconstrução: a decisão de ascensão agora calcula se o reset compensa antes de chamar `Game.Ascend()`, e a economia passa a estimar o valor dos upgrades por sinais estatísticos em vez de usar apenas preço/descrição genérica.
+
+### Ascensão
+
+A análise `ascensionAnalysis()` considera:
+
+- prestígio atual e prestígio potencial;
+- ganho absoluto e ganho percentual;
+- aumento estimado do multiplicador permanente de CpS;
+- tempo de recuperação estimado após o reset;
+- fator de segurança para evitar estimativas otimistas demais;
+- limite mínimo de ganho;
+- limite máximo de recuperação.
+
+`shouldAscend()` só libera a ascensão quando a análise retorna `worthIt: true`.
+
+```js
+CookieBotV6.ascensionAnalysis()
+```
+
+Se `autoReincarnate` estiver desligado, a V6 agora **para e pausa o bot após `Game.Ascend()`**, em vez de continuar executando tarefas enquanto o jogo está na tela de ascensão. Isso evita o estado inconsistente que fazia a automação parecer travada/quebrada.
+
+### Upgrades por estatística
+
+`upgradeStatProfile()` cria uma estimativa de valor usando sinais disponíveis no próprio objeto do upgrade e sua descrição, incluindo:
+
+- ganho direto de CpS;
+- multiplicadores de CpS;
+- bônus de clique;
+- multiplicadores de clique;
+- efeitos relacionados a edifícios;
+- efeitos de leite/kitten;
+- sinais textuais de produção e multiplicadores.
+
+O score econômico combina esse valor estimado com preço, payback e capacidade de compra. Assim, o upgrade mais barato não é automaticamente considerado o melhor.
+
+### Pantheon
+
+A V6.7 também reconstrói o Pantheon como módulo opcional:
+
+- detecção do minigame do Temple;
+- busca de deus por nome;
+- seleção de slot configurável;
+- tentativa compatível com as assinaturas conhecidas de `slotGod`;
+- contador de alterações;
+- desativado por padrão.
+
+Configuração:
+
+```js
+CookieBotV6.config({
+  pantheonEnabled: true,
+  pantheonGod: 'Godzamok',
+  pantheonSlot: 0
+})
+```
+
+APIs: `ascensionAnalysis()`, `upgradeStatProfile()`, `pantheonMinigame()`, `pantheonGods()`, `findPantheonGod()` e `managePantheon()`.
+
 ## V6.6 — Stock Market
 
 Módulo opcional do Stock Market: detecção do minigame do Bank, leitura de `goods`/`goodsById`, avaliação de preço e operações de compra/venda com limites configuráveis. O módulo permanece desligado por padrão e não força operações sem configuração de thresholds.
