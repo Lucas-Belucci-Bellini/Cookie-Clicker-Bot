@@ -898,8 +898,16 @@
       const last = state.taskLastRun.get(task.name) || 0;
       if (now - last > task.intervalMs + grace) {
         state.stats.watchdogRestarts++;
-        state.taskLastRun.set(task.name, now);
-        log('warn', 'Watchdog recuperou a tarefa: ' + task.name);
+        try {
+          task.handler();
+          state.taskLastRun.set(task.name, now);
+          state.taskFailures.set(task.name, 0);
+          log('warn', 'Watchdog recuperou e executou: ' + task.name);
+        } catch (error) {
+          state.taskFailures.set(task.name, (state.taskFailures.get(task.name) || 0) + 1);
+          state.stats.errors++;
+          log('error', 'Watchdog não conseguiu recuperar: ' + task.name, error);
+        }
       }
     }
   }
