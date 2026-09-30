@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.14.0';
+  const VERSION = '6.15.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -1262,9 +1262,10 @@
       const runs = state.taskRunCount.get(task.name) || 0;
       const durationMs = state.taskDurationMs.get(task.name) || 0;
       const ageMs = lastRun ? now - lastRun : Infinity;
-      let health = 'UNKNOWN';
-      if (lastSuccess && ageMs <= task.intervalMs + (Number(CONFIG.watchdogGraceMs) || 15000)) health = failures ? 'DEGRADED' : 'HEALTHY';
-      else if (lastRun) health = 'STALE';
+      let health = state.taskHealth.get(task.name) || 'UNKNOWN';
+      if (health === 'HEALTHY' && lastSuccess && ageMs > task.intervalMs + (Number(CONFIG.watchdogGraceMs) || 15000)) health = 'STALE';
+      else if (health === 'UNKNOWN' && lastSuccess && ageMs <= task.intervalMs + (Number(CONFIG.watchdogGraceMs) || 15000)) health = failures ? 'DEGRADED' : 'HEALTHY';
+      else if (health === 'UNKNOWN' && lastRun) health = 'STALE';
       return { name: task.name, health, intervalMs: task.intervalMs, lastRun, lastSuccess, ageMs, failures, runs, durationMs };
     });
   }
