@@ -25,6 +25,14 @@ CookieBotV6.config({
 })
 ```
 
+## V6.5 — Garden
+
+Módulo opcional de automação do Garden: detecção da fazenda, leitura de `plot`/`tiles`, colheita de plantas maduras e plantio opcional por ID. O plantio automático permanece desligado por padrão.
+
+Configuração: `gardenEnabled`, `gardenHarvestMature`, `gardenAutoPlant` e `gardenPlantId`.
+
+APIs: `gardenMinigame()`, `gardenTiles()`, `harvestGarden()`, `plantGarden()` e `gardenCycle()`.
+
 ## V6.4 — Grimoire
 
 A V6.4 reconstrói a automação do Grimoire como módulo opcional e isolado.
