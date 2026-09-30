@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.19.0';
+  const VERSION = '6.20.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -971,6 +971,27 @@
     return false;
   }
 
+  function recoverAscensionFailure() {
+    if (state.ascensionPhase !== 'FAILED') return false;
+    if (!gameReady()) return false;
+
+    state.ascending = false;
+    state.ascensionPhase = 'READY';
+    state.ascensionSnapshot = null;
+    state.lastError = null;
+    state.paused = false;
+    state.active = true;
+    state.ascensionOutcome = {
+      ok: null,
+      reason: 'falha de ascensão reconhecida; estado recuperado manualmente',
+      recoveredAt: new Date().toISOString()
+    };
+
+    configureTimers();
+    log('warn', 'Estado de ascensão recuperado manualmente; nenhuma nova ascensão foi disparada.');
+    return true;
+  }
+
   function performAscension() {
     const analysis = ascensionAnalysis();
     if (!gameReady() || state.ascending || !CONFIG.autoAscend || !analysis.worthIt) return false;
@@ -1662,6 +1683,7 @@
       upgradeAnalysis,
       buyHeavenlyUpgrades,
       performAscension,
+      recoverAscensionFailure,
       clickCookie,
       clickShimmers,
       purchaseCycle,
