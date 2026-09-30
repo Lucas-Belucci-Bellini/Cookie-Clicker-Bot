@@ -25,6 +25,14 @@ CookieBotV6.config({
 })
 ```
 
+## V6.6 — Stock Market
+
+Módulo opcional do Stock Market: detecção do minigame do Bank, leitura de `goods`/`goodsById`, avaliação de preço e operações de compra/venda com limites configuráveis. O módulo permanece desligado por padrão e não força operações sem configuração de thresholds.
+
+Configuração: `marketEnabled`, `marketBuyThreshold`, `marketSellThreshold` e `marketMaxSpendRatio`.
+
+APIs: `marketMinigame()`, `marketGoods()` e `manageMarket()`.
+
 ## V6.5 — Garden
 
 Módulo opcional de automação do Garden: detecção da fazenda, leitura de `plot`/`tiles`, colheita de plantas maduras e plantio opcional por ID. O plantio automático permanece desligado por padrão.
