@@ -38,6 +38,7 @@
 
     spendingLimit: 0.75,
     reserveCookies: 0,
+    reserveCookiesRatio: 0.10,
     economyEnabled: true,
     targetPaybackSeconds: 3600,
     upgradeValueWeight: 1.2,
