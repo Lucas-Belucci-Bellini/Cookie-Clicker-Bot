@@ -43,6 +43,8 @@
     targetPaybackSeconds: 3600,
     upgradeValueWeight: 1.2,
     buildingValueWeight: 1,
+    historyEnabled: true,
+    historyMaxEntries: 96,
 
     // Minigames são opcionais e só executam quando a API real estiver presente.
     grimoire: false,
@@ -64,6 +66,7 @@
     timers: new Map(),
     timeouts: new Set(),
     ascending: false,
+    history: [],
     stats: {
       clicks: 0,
       shimmers: 0,
@@ -75,6 +78,7 @@
       reincarnations: 0,
       economicDecisions: 0,
       economicNoops: 0,
+      historySaves: 0,
       errors: 0,
       ticks: 0
     }
@@ -343,6 +347,7 @@
       economicNoops: state.stats.economicNoops,
       lastAction: state.lastAction
     };
+    saveHistory(data);
     console.group('🍪 CookieBot V6 — Economia');
     console.table(data);
     console.groupEnd();
@@ -563,6 +568,48 @@
     state.timeouts.clear();
   }
 
+
+  function historyKey() {
+    return '__COOKIE_CLICKER_BOT_V6_HISTORY__';
+  }
+
+  function loadHistory() {
+    if (!CONFIG.historyEnabled || typeof localStorage === 'undefined') return [];
+    return safe(() => {
+      const raw = localStorage.getItem(historyKey());
+      const parsed = raw ? JSON.parse(raw) : [];
+      state.history = Array.isArray(parsed) ? parsed.slice(-Math.max(1, Number(CONFIG.historyMaxEntries) || 96)) : [];
+      return [...state.history];
+    }, [], 'histórico não pôde ser carregado');
+  }
+
+  function saveHistory(entry) {
+    if (!CONFIG.historyEnabled || typeof localStorage === 'undefined') return false;
+    return safe(() => {
+      state.history.push({
+        generatedAt: new Date().toISOString(),
+        ...entry
+      });
+      const max = Math.max(1, Math.floor(Number(CONFIG.historyMaxEntries) || 96));
+      if (state.history.length > max) state.history = state.history.slice(-max);
+      localStorage.setItem(historyKey(), JSON.stringify(state.history));
+      state.stats.historySaves++;
+      return true;
+    }, false, 'histórico não pôde ser salvo');
+  }
+
+  function performanceHistory() {
+    return [...state.history];
+  }
+
+  function clearHistory() {
+    state.history = [];
+    if (typeof localStorage !== 'undefined') {
+      safe(() => localStorage.removeItem(historyKey()), null, 'histórico não pôde ser limpo');
+    }
+    return true;
+  }
+
   function report() {
     if (!state.active || !gameReady()) return null;
     const data = {
@@ -628,6 +675,7 @@
     state.startedAt = Date.now();
     state.cookiesAtStart = cookies();
     state.lastError = null;
+    loadHistory();
 
     configureTimers();
     log('info', 'Bot V6 iniciado.');
@@ -670,6 +718,11 @@
       chooseEconomicAction,
       executeEconomicAction,
       economicReport,
+      historyKey,
+      loadHistory,
+      saveHistory,
+      performanceHistory,
+      clearHistory,
       moduleStatus
     };
   }
