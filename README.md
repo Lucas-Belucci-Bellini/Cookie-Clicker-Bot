@@ -431,3 +431,31 @@ CookieBotV5.config({ reportIntervalMs: 600000 }) // 10 minutos
 ```
 
 > A V5.4 continua sendo uma implementação para o runtime real do Cookie Clicker e precisa de validação dentro do jogo. O relatório periódico e o motor econômico foram adicionados estaticamente ao código; não foram considerados testes de runtime até serem executados no Cookie Clicker.
+
+## V5.5 — Economia normalizada e histórico
+
+A V5.5 corrige um problema importante da V5.4: upgrades e edifícios agora são avaliados em uma escala econômica comparável, removendo o multiplicador artificial de `1e6` que favorecia upgrades de forma desproporcional.
+
+### Motor econômico
+
+- orçamento econômico real baseado em `spendingLimit` + reserva mínima;
+- reserva dinâmica por percentual e valor absoluto;
+- score normalizado usando valor estimado, custo, payback e acessibilidade;
+- buffs podem aumentar a agressividade durante períodos favoráveis;
+- `economicNoops` registra ciclos em que nenhuma compra foi considerada adequada.
+
+### Histórico de desempenho
+
+Os relatórios periódicos agora são persistidos no `localStorage`, com limite configurável por `historyMaxEntries`.
+
+Comandos:
+
+```js
+CookieBotV5.performanceHistory()
+CookieBotV5.clearHistory()
+CookieBotV5.economicReport()
+```
+
+Cada entrada registra cookies, CpS, CpH, compras, decisões econômicas, ascensões, erros, última ação e variações de cookies/CpS em relação ao relatório anterior.
+
+> A V5.5 foi verificada estaticamente no código do repositório. O bot ainda precisa ser executado dentro do Cookie Clicker para validar as APIs reais dos minigames e o comportamento em runtime.
