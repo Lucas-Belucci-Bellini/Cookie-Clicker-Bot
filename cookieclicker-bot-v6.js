@@ -48,6 +48,8 @@
     buildingValueWeight: 1,
     historyEnabled: true,
     historyMaxEntries: 96,
+    healthEnabled: true,
+    healthHistoryMaxEntries: 96,
 
     // Minigames são opcionais e só executam quando a API real estiver presente.
     grimoire: false,
@@ -99,6 +101,10 @@
     taskLastRun: new Map(),
     taskFailures: new Map(),
     taskRunCount: new Map(),
+    taskDurationMs: new Map(),
+    taskLastSuccess: new Map(),
+    taskHealth: new Map(),
+    healthHistory: [],
     timeouts: new Set(),
     ascending: false,
     history: [],
@@ -125,6 +131,8 @@
       sugarLumpsHarvested: 0,
       schedulerTicks: 0,
       watchdogRestarts: 0,
+      healthChecks: 0,
+      healthRecoveries: 0,
       errors: 0,
       ticks: 0
     }
@@ -993,7 +1001,8 @@
       seasons: typeof Game.startSeason === 'function',
       sugarLumps: typeof Game.clickLump === 'function' && typeof Game.canLumps === 'function',
       scheduler: !!state.schedulerTimer,
-      watchdog: !!state.watchdogTimer
+      watchdog: !!state.watchdogTimer,
+      health: CONFIG.healthEnabled
     };
   }
 
@@ -1054,6 +1063,60 @@
     safe(fn, null, 'tarefa ' + name + ' falhou');
   }
 
+  function taskHealthSnapshot() {
+    const now = Date.now();
+    return [...state.schedulerTasks.values()].map(task => {
+      const lastRun = state.taskLastRun.get(task.name) || 0;
+      const lastSuccess = state.taskLastSuccess.get(task.name) || 0;
+      const failures = state.taskFailures.get(task.name) || 0;
+      const runs = state.taskRunCount.get(task.name) || 0;
+      const durationMs = state.taskDurationMs.get(task.name) || 0;
+      const ageMs = lastRun ? now - lastRun : Infinity;
+      let health = 'UNKNOWN';
+      if (lastSuccess && ageMs <= task.intervalMs + (Number(CONFIG.watchdogGraceMs) || 15000)) health = failures ? 'DEGRADED' : 'HEALTHY';
+      else if (lastRun) health = 'STALE';
+      return { name: task.name, health, intervalMs: task.intervalMs, lastRun, lastSuccess, ageMs, failures, runs, durationMs };
+    });
+  }
+
+  function healthSummary() {
+    state.stats.healthChecks = (state.stats.healthChecks || 0) + 1;
+    const tasks = taskHealthSnapshot();
+    const counts = tasks.reduce((a, t) => { a[t.health] = (a[t.health] || 0) + 1; return a; }, {});
+    const summary = {
+      generatedAt: new Date().toISOString(),
+      operationalState: operationalState(),
+      scheduler: !!state.schedulerTimer,
+      watchdog: !!state.watchdogTimer,
+      tasks,
+      counts,
+      errors: state.stats.errors,
+      watchdogRestarts: state.stats.watchdogRestarts || 0
+    };
+    if (CONFIG.healthEnabled) {
+      state.healthHistory.push(summary);
+      const max = Math.max(1, Math.floor(Number(CONFIG.healthHistoryMaxEntries) || 96));
+      if (state.healthHistory.length > max) state.healthHistory = state.healthHistory.slice(-max);
+    }
+    return summary;
+  }
+
+  function healthHistory() {
+    return [...state.healthHistory];
+  }
+
+  function clearHealthHistory() {
+    state.healthHistory = [];
+    return true;
+  }
+
+  function healthCycle() {
+    if (!state.active || state.paused) return null;
+    const before = healthSummary();
+    if ((before.counts.STALE || 0) > 0) state.stats.healthRecoveries++;
+    return before;
+  }
+
   function operationalState() {
     if (!state.active) return 'IDLE';
     if (state.paused) return 'PAUSED';
@@ -1083,6 +1146,8 @@
       const duration = performance.now() - started;
       state.taskLastRun.set(task.name, now);
       state.taskFailures.set(task.name, 0);
+      state.taskLastSuccess.set(task.name, now);
+      state.taskDurationMs.set(task.name, duration);
       state.taskRunCount.set(task.name, (state.taskRunCount.get(task.name) || 0) + 1);
       if (recovery) log('warn', 'Watchdog recuperou: ' + task.name);
       return { ok: true, duration };
@@ -1141,6 +1206,9 @@
     state.taskLastRun.clear();
     state.taskFailures.clear();
     state.taskRunCount.clear();
+    state.taskDurationMs.clear();
+    state.taskLastSuccess.clear();
+    state.taskHealth.clear();
 
     registerTask('shimmers', CONFIG.shimmerMs, 100, clickShimmers);
     registerTask('prestige', CONFIG.prestigeMs, 90, tryAscend);
@@ -1156,6 +1224,7 @@
     registerTask('status', CONFIG.statusMs, 4, status);
     registerTask('report', CONFIG.reportMs, 5, report);
     registerTask('economicReport', CONFIG.reportMs, 5, economicReport);
+    if (CONFIG.healthEnabled) registerTask('health', CONFIG.statusMs, 6, healthCycle);
     return state.schedulerTasks.size;
   }
 
@@ -1367,7 +1436,12 @@
       watchdogTick,
       startScheduler,
       stopScheduler,
-      configureScheduler
+      configureScheduler,
+      taskHealthSnapshot,
+      healthSummary,
+      healthHistory,
+      clearHealthHistory,
+      healthCycle
     };
   }
 
