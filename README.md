@@ -25,6 +25,53 @@ CookieBotV6.config({
 })
 ```
 
+## V6.10 — Scheduler + Watchdog
+
+A V6.10 substitui a coordenação dos módulos por um **Scheduler centralizado**, mantendo o clique rápido em timer separado.
+
+### Scheduler
+
+O Scheduler:
+
+- mantém uma fila única de tarefas;
+- executa tarefas por intervalo;
+- ordena tarefas por prioridade;
+- registra última execução, falhas e quantidade de execuções;
+- ativa somente os módulos opcionais realmente habilitados;
+- mantém o clique em timer próprio, porque o Scheduler trabalha em escala de segundos.
+
+Prioridades principais:
+
+`shimmers > prestige > purchases > wrinklers > minigames > dragon > seasons > sugar lumps > reports`.
+
+### Watchdog
+
+O Watchdog verifica tarefas que ficaram além do intervalo esperado.
+
+Quando uma tarefa fica atrasada além da margem configurada, o Watchdog tenta executá-la novamente e registra a recuperação.
+
+Configuração:
+
+```js
+CookieBotV6.config({
+  schedulerIntervalMs: 1000,
+  watchdogIntervalMs: 10000,
+  watchdogGraceMs: 15000
+})
+```
+
+APIs adicionadas:
+
+- `operationalState()`
+- `registerTask()`
+- `schedulerTick()`
+- `watchdogTick()`
+- `startScheduler()`
+- `stopScheduler()`
+- `configureScheduler()`
+
+O diagnóstico também passa a informar se Scheduler e Watchdog estão ativos.
+
 ## V6.9 — Sugar Lumps
 
 A V6.9 reconstrói o módulo de **Sugar Lumps** com execução opcional e conservadora.
