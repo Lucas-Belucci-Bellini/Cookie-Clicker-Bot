@@ -25,6 +25,33 @@ CookieBotV6.config({
 })
 ```
 
+## V6.2 — Módulo Econômico
+
+A V6.2 reconstrói o motor econômico da V5 como um módulo independente do runtime.
+
+- orçamento baseado em limite de gasto + reserva absoluta/proporcional;
+- avaliação conjunta de upgrades e edifícios;
+- eficiência normalizada por preço, valor e payback;
+- `chooseEconomicAction()` seleciona a ação de maior pontuação;
+- `executeEconomicAction()` executa a decisão com tratamento seguro de erro;
+- relatório econômico periódico;
+- contadores de decisões e decisões sem ação;
+- sem a escala artificial de `1e6` que existia em uma versão antiga da V5.
+
+Configuração principal:
+
+```js
+CookieBotV6.config({
+  economyEnabled: true,
+  spendingLimit: 0.75,
+  reserveCookies: 0,
+  reserveCookiesRatio: 0.10,
+  targetPaybackSeconds: 3600
+})
+```
+
+APIs: `CookieBotV6.economicBudget()`, `.chooseEconomicAction()`, `.executeEconomicAction()` e `.economicReport()`.
+
 ## V6 — Stable Runtime Rewrite
 
 A V6 foi criada porque a V5 acumulou complexidade antes de ter validação suficiente no runtime real do Cookie Clicker.
