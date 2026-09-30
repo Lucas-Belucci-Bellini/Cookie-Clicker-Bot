@@ -574,3 +574,45 @@ incremental e permite comparar as versões sem apagar as anteriores.
 
 A revisão desta versão foi feita estaticamente no repositório. A validação final
 das APIs do Cookie Clicker continua dependendo da execução no runtime real.
+
+
+## V5.8 — Health Checks reais e ciclo de vida do Scheduler
+
+A V5.8 evolui a observabilidade da V5.7 para saúde operacional do Scheduler.
+
+### Saúde por tarefa
+
+Cada tarefa agora registra:
+
+- execuções;
+- falhas consecutivas;
+- última execução;
+- último sucesso;
+- duração da última execução;
+- duração média;
+- idade do último sucesso;
+- prioridade e intervalo.
+
+Comandos:
+
+```js
+CookieBotV5.schedulerHealth()
+CookieBotV5.healthSummary()
+```
+
+Os estados principais são `WAITING`, `HEALTHY`, `RECOVERED`,
+`DEGRADED`, `STALE` e `ERROR`.
+
+### Ciclo de vida corrigido
+
+`stop()` e `emergencyStop()` agora também encerram explicitamente o
+Scheduler e o Watchdog. Alterações de configuração durante a execução
+reconfiguram os ciclos do Scheduler.
+
+Isso reduz o risco de uma instância aparentemente parada continuar executando
+tarefas em segundo plano.
+
+### Validação
+
+A revisão desta versão foi feita estaticamente no repositório. A execução final
+das APIs depende do runtime real do Cookie Clicker.
