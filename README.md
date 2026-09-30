@@ -563,3 +563,22 @@ Configurações novas:
 - `upgradeStatisticalMaxWeight: 0.60`
 
 > Validação: estrutura do código verificada no GitHub. Nenhuma sessão real do Cookie Clicker foi executada nesta etapa.
+
+
+## V6.17 — Watchdog com recuperação controlada
+
+A V6.17 endurece a recuperação automática do Scheduler/Watchdog.
+
+- recuperação só conta como `watchdogRestart` quando a tarefa realmente executa com sucesso;
+- cada tarefa possui limite de tentativas de recuperação;
+- tentativas malsucedidas entram em estado `STALE` sem loop infinito;
+- existe cooldown entre ciclos de recuperação;
+- contadores de tentativa e último recovery são reinicializados junto com o Scheduler;
+- o estado de ascensão continua protegido contra execução de tarefas normais durante transições.
+
+Novas configurações:
+
+- `watchdogMaxRecoveryAttempts: 2`
+- `watchdogRecoveryCooldownMs: 15000`
+
+> Validação: estrutura do código verificada no GitHub. Não houve execução dentro de uma sessão real do Cookie Clicker.
