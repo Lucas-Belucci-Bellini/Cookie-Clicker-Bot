@@ -2,6 +2,29 @@
 
 Este repositório mantém as versões históricas do bot e evolui uma versão por vez, sem apagar V1–V5.9.
 
+## V6.1 — Módulo de Ascensão e Progressão Celestial
+
+A V6.1 reconstrói o primeiro módulo removido da V5, mantendo o núcleo V6 pequeno e adicionando a progressão pós-prestígio como um módulo isolado.
+
+- cálculo de decisão de ascensão separado de `performAscension()`;
+- compra de Heavenly Upgrades (`pool === 'prestige'`) quando disponíveis;
+- reencarnação opcional após a ascensão;
+- timeouts pós-ascensão rastreados e canceláveis por `stop()`;
+- estado `ascending` impede tarefas incompatíveis durante a transição;
+- estatísticas próprias para ascensões, upgrades celestiais e reencarnações;
+- `CookieBotV6.shouldAscend()`, `.buyHeavenlyUpgrades()` e `.performAscension()` expostos na API.
+
+Por segurança, `autoAscend` e `autoReincarnate` continuam desligados por padrão. `buyHeavenlyUpgrades` fica habilitado para que upgrades celestiais elegíveis sejam comprados quando uma ascensão ocorrer.
+
+```js
+CookieBotV6.config({
+  autoAscend: true,
+  autoReincarnate: false,
+  buyHeavenlyUpgrades: true,
+  postAscensionDelayMs: 4000
+})
+```
+
 ## V6 — Stable Runtime Rewrite
 
 A V6 foi criada porque a V5 acumulou complexidade antes de ter validação suficiente no runtime real do Cookie Clicker.
