@@ -459,3 +459,52 @@ CookieBotV5.economicReport()
 Cada entrada registra cookies, CpS, CpH, compras, decisões econômicas, ascensões, erros, última ação e variações de cookies/CpS em relação ao relatório anterior.
 
 > A V5.5 foi verificada estaticamente no código do repositório. O bot ainda precisa ser executado dentro do Cookie Clicker para validar as APIs reais dos minigames e o comportamento em runtime.
+
+
+## V5.6 — Scheduler, estados operacionais e watchdog
+
+A V5.6 reorganiza a execução interna da V5 para reduzir a dependência de vários `setInterval()` independentes.
+
+### Scheduler central
+
+As tarefas automáticas são registradas em um scheduler único, com:
+
+- intervalo individual por tarefa;
+- prioridade;
+- controle central de execução;
+- contador de ticks;
+- registro de falhas por tarefa;
+- migração das rotinas de shimmers, compras, wrinklers, Grimoire, jardim, mercado, Pantheon, dragão, temporadas, sugar lumps, prestígio, status e relatórios.
+
+### Estados operacionais
+
+`CookieBotV5.operationalState()` informa um estado simples:
+
+- `IDLE`
+- `PAUSED`
+- `RUNNING`
+- `BUFF_ACTIVE`
+- `ASCENDING`
+
+### Watchdog
+
+Um watchdog monitora as tarefas do scheduler. Quando uma tarefa fica atrasada além da tolerância configurada, ele tenta executar a tarefa imediatamente e registra a recuperação.
+
+Configurações:
+
+```js
+schedulerIntervalMs
+watchdogIntervalMs
+watchdogGraceMs
+```
+
+Comandos úteis:
+
+```js
+CookieBotV5.operationalState()
+CookieBotV5.configureScheduler()
+CookieBotV5.startScheduler()
+CookieBotV5.stopScheduler()
+```
+
+> A V5.6 foi verificada estaticamente. O comportamento do scheduler, watchdog e APIs dos minigames ainda precisa de execução dentro do Cookie Clicker real para validação de runtime.
