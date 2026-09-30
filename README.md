@@ -616,3 +616,35 @@ tarefas em segundo plano.
 
 A revisão desta versão foi feita estaticamente no repositório. A execução final
 das APIs depende do runtime real do Cookie Clicker.
+
+
+## V5.9 — Histórico e tendência de saúde
+
+A V5.9 transforma os health checks da V5.8 em telemetria histórica.
+
+### Novos recursos
+
+- snapshots periódicos de saúde;
+- limite configurável de histórico;
+- tendência `STABLE`, `IMPROVING` ou `DEGRADING`;
+- contagem de amostras degradadas e com erro;
+- relatório consolidado no console;
+- monitor automático de saúde.
+
+Comandos:
+
+```js
+CookieBotV5.healthSnapshot()
+CookieBotV5.healthHistory()
+CookieBotV5.healthTrend()
+CookieBotV5.healthReport()
+CookieBotV5.startHealthMonitor()
+CookieBotV5.stopHealthMonitor()
+```
+
+O monitor coleta um snapshot a cada 60 segundos por padrão, com
+`healthSnapshotIntervalMs` configurável.
+
+A V5.9 continua compatível com a arquitetura anterior e não altera os arquivos
+das versões V1–V5.7. A validação desta evolução é estrutural; o runtime final
+deve ser conferido dentro do Cookie Clicker.
