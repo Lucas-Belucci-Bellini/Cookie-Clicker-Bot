@@ -337,3 +337,17 @@ A V5 recebeu uma rodada adicional de endurecimento sem remover a V5.0:
 - versão interna atualizada para `5.1.0`.
 
 > Observação: a V5.1 foi revisada estaticamente. O repositório ainda não possui um teste automatizado que execute o bot dentro do runtime real do Cookie Clicker, então compatibilidade dos minigames deve ser validada no jogo antes de tratar todos os módulos como garantidos.
+
+
+## V5.2 — Compatibilidade de minigames
+
+A V5 recebeu mais uma camada de compatibilidade:
+
+- resolução de spells do Grimório por nome, inclusive quando a chave interna do jogo muda;
+- Garden adaptado para APIs com `getTile(x,y)` e para a estrutura alternativa de `plot`;
+- Stock Market aceita `goodsById` ou `goods`;
+- Pantheon tenta as duas assinaturas conhecidas de `slotGod`;
+- auras do Dragão são procuradas pelo nome em `Game.dragonAuras`, evitando IDs fixos;
+- temporadas usam uma lista configurável de prioridade em vez de assumir apenas Christmas.
+
+A versão atual do arquivo é **V5.2.0**. Essas adaptações reduzem dependências rígidas da implementação interna, mas ainda exigem validação no runtime real do Cookie Clicker.
