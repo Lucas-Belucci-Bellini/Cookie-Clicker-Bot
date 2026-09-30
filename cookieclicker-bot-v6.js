@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.5.0';
+  const VERSION = '6.6.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -57,6 +57,10 @@
     gardenHarvestMature: true,
     gardenAutoPlant: false,
     gardenPlantId: null,
+    marketEnabled: false,
+    marketBuyThreshold: 0,
+    marketSellThreshold: 0,
+    marketMaxSpendRatio: 0.10,
     pantheon: false,
     dragon: false,
 
@@ -89,6 +93,8 @@
       grimoireCasts: 0,
       gardenHarvests: 0,
       gardenPlantings: 0,
+      marketBuys: 0,
+      marketSells: 0,
       errors: 0,
       ticks: 0
     }
@@ -475,6 +481,62 @@
     return harvested || planted;
   }
 
+
+  function marketMinigame() {
+    const bank = Game && Game.ObjectsById && Game.ObjectsById[5];
+    return bank && bank.minigame ? bank.minigame : null;
+  }
+
+  function marketGoods(minigame) {
+    if (!minigame) return [];
+    const source = minigame.goodsById || minigame.goods;
+    if (!source) return [];
+    if (Array.isArray(source)) return source;
+    return Object.keys(source).map(k => source[k]).filter(Boolean);
+  }
+
+  function marketPrice(good) {
+    return Number(good && (good.val !== undefined ? good.val : good.price));
+  }
+
+  function manageMarket() {
+    if (!CONFIG.marketEnabled || isPaused() || !gameReady()) return false;
+    const market = marketMinigame();
+    if (!market) return false;
+    const goods = marketGoods(market);
+    const budget = cookies() * Math.max(0, Math.min(1, Number(CONFIG.marketMaxSpendRatio) || 0));
+    let changed = false;
+
+    for (const good of goods) {
+      const price = marketPrice(good);
+      if (!Number.isFinite(price) || price < 0) continue;
+
+      const stock = Number(good.stock || 0);
+      const maxStock = Number(good.maxStock || good.stockMax || 0);
+      const canBuy = typeof market.buyGood === 'function' && price > 0 &&
+        price <= Number(CONFIG.marketBuyThreshold) && cookies() >= price &&
+        (!maxStock || stock < maxStock) && price <= budget;
+      const canSell = typeof market.sellGood === 'function' &&
+        price >= Number(CONFIG.marketSellThreshold) && stock > 0;
+
+      if (canBuy) {
+        safe(() => market.buyGood(good.id), null, 'compra no Market falhou');
+        state.stats.marketBuys++;
+        state.lastAction = 'market:buy:' + String(good.name || good.id);
+        changed = true;
+        break;
+      }
+      if (canSell) {
+        safe(() => market.sellGood(good.id), null, 'venda no Market falhou');
+        state.stats.marketSells++;
+        state.lastAction = 'market:sell:' + String(good.name || good.id);
+        changed = true;
+        break;
+      }
+    }
+    return changed;
+  }
+
   function purchaseCycle() {
     if (isPaused() || !gameReady()) return;
     if (CONFIG.economyEnabled) {
@@ -767,6 +829,7 @@
     addTimer('economicReport', CONFIG.reportMs, economicReport);
     if (CONFIG.grimoireEnabled) addTimer('grimoire', CONFIG.shimmerMs, castGrimoire);
     if (CONFIG.gardenEnabled) addTimer('garden', CONFIG.purchaseMs, gardenCycle);
+    if (CONFIG.marketEnabled) addTimer('market', CONFIG.purchaseMs, manageMarket);
   }
 
   function stop() {
@@ -857,6 +920,9 @@
       harvestGarden,
       plantGarden,
       gardenCycle,
+      marketMinigame,
+      marketGoods,
+      manageMarket,
       moduleStatus
     };
   }
