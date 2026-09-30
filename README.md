@@ -351,3 +351,29 @@ A V5 recebeu mais uma camada de compatibilidade:
 - temporadas usam uma lista configurável de prioridade em vez de assumir apenas Christmas.
 
 A versão atual do arquivo é **V5.2.0**. Essas adaptações reduzem dependências rígidas da implementação interna, mas ainda exigem validação no runtime real do Cookie Clicker.
+
+
+## V5.3 — Matriz de compatibilidade e diagnóstico modular
+
+A V5.3 adiciona uma camada explícita de detecção de capacidades antes de ativar os ciclos de automação.
+
+### O que mudou
+
+- cada módulo principal passa por uma verificação de capacidade antes de criar seu timer;
+- o diagnóstico agora informa **suportado/indisponível** e o motivo detectado;
+- a API pública ganhou `CookieBotV5.capabilities()` e `CookieBotV5.capability('nome')`;
+- os módulos de Garden, Market, Pantheon, Dragon, Seasons e Grimoire continuam usando os adaptadores introduzidos na V5.2;
+- a inicialização deixa de criar timers de módulos que não estão disponíveis no runtime atual;
+- o diagnóstico também mostra cookies, CpS, prestígio, quantidade de edifícios/upgrades/wrinklers e nível do dragão.
+
+### Exemplo
+
+```js
+CookieBotV5.diagnostics()
+CookieBotV5.capabilities()
+CookieBotV5.capability('garden')
+```
+
+O objetivo desta camada é fazer a V5 degradar de forma mais segura quando uma API interna do Cookie Clicker estiver ausente ou diferente, em vez de assumir que todos os minigames existem.
+
+> A V5.3 continua sendo uma revisão estática do código. A matriz de compatibilidade precisa ser conferida no runtime real do Cookie Clicker para validar o comportamento de cada API.
