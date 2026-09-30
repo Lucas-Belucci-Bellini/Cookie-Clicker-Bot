@@ -542,3 +542,24 @@ A V6.15 fecha uma lacuna do módulo de execução: o Scheduler e o Watchdog agor
 Isso reduz o risco de o sistema considerar uma tarefa saudável quando ela executou, mas informou explicitamente que não conseguiu completar sua operação.
 
 > Validação: código verificado estruturalmente no GitHub. Nenhuma sessão real do Cookie Clicker foi executada nesta etapa.
+
+
+## V6.16 — Estatística empírica mais confiável
+
+A V6.16 melhora o módulo de decisão econômica usando as observações reais coletadas após compras.
+
+### Melhorias
+
+- observações contaminadas por buffs conhecidos não entram no cálculo estatístico;
+- o relatório distingue `observations` de `cleanObservations`;
+- o peso estatístico máximo agora é configurável;
+- compras do mesmo upgrade não criam observações pendentes duplicadas em uma janela de cooldown;
+- cada observação registra a variação bruta de CpS e o motivo de eventual contaminação;
+- o motor continua combinando estimativa heurística + evidência empírica, em vez de confiar cegamente em uma única medição.
+
+Configurações novas:
+
+- `upgradeObservationCooldownMs: 7000`
+- `upgradeStatisticalMaxWeight: 0.60`
+
+> Validação: estrutura do código verificada no GitHub. Nenhuma sessão real do Cookie Clicker foi executada nesta etapa.
