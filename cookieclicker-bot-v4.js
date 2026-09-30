@@ -114,6 +114,7 @@ const BOT = (() => {
     pausado:         false,
     intervalos:      [],
     clickInterval:   null,
+    timerPosAscensao: null,
     frenzyAtivo:     false,
     clickFrenzyAtivo:false,
     elderFrenzy:     false,
@@ -176,9 +177,11 @@ const BOT = (() => {
 
   function limparIntervalos() {
     if (estado.clickInterval) clearInterval(estado.clickInterval);
+    if (estado.timerPosAscensao) clearTimeout(estado.timerPosAscensao);
     estado.intervalos.forEach(clearInterval);
     estado.intervalos = [];
     estado.clickInterval = null;
+    estado.timerPosAscensao = null;
   }
 
   function saldoDisponivel() {
@@ -271,7 +274,9 @@ const BOT = (() => {
       try {
         Game.ClickCookie();
         estado.estatisticas.cliques++;
-      } catch (e) {}
+      } catch (e) {
+        log('warn', `Falha ao clicar no biscoito: ${e.message || e}`);
+      }
     }, vel);
   }
 
@@ -354,7 +359,10 @@ const BOT = (() => {
 
       // Cálculo simples de ROI: CpS adicional / Preço
       // Game.cookiesPs é o global, cada prédio tem seu cps individual
-      const cpsAdicional = obj.storedCps * Game.globalCpsMult;
+      const cpsBase = Number(obj.storedCps || obj.baseCps || 0);
+      const multiplicador = Number(Game.globalCpsMult || 1);
+      const cpsAdicional = cpsBase * multiplicador;
+      if (!Number.isFinite(cpsAdicional) || cpsAdicional <= 0) return;
       const roi = cpsAdicional / preco;
 
       if (roi > melhorROI) {
@@ -682,11 +690,13 @@ const BOT = (() => {
           log('warn', `Erro ao reencarnar: ${e.message}`);
         }
         
-        // Timer de 5 minutos solicitado pelo usuário após "acender" / reencarnar
+        // Timer de 5 minutos após reencarnar.
         log('info', `⏳ Aguardando ${CONFIG.delayPosReencarnacao / 60000} minutos para retomar as atividades...`);
-        setTimeout(() => {
+        if (estado.timerPosAscensao) clearTimeout(estado.timerPosAscensao);
+        estado.timerPosAscensao = setTimeout(() => {
+          estado.timerPosAscensao = null;
           estado.ascendendo = false;
-          iniciarAutoClicker();
+          if (estado.ativo && !estado.pausado) iniciarAutoClicker();
           log('info', '🚀 Bot retomou as atividades após o timer pós-ascensão.');
         }, CONFIG.delayPosReencarnacao);
 
