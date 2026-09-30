@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.15.0';
+  const VERSION = '6.16.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -38,6 +38,8 @@
     ascensionVerificationDelayMs: 1200,
     upgradeObservationWindowMs: 5000,
     upgradeObservationMaxEntries: 96,
+    upgradeObservationCooldownMs: 7000,
+    upgradeStatisticalMaxWeight: 0.60,
 
     // Estourar wrinklers por padrão também fica desligado.
     popWrinklers: false,
@@ -448,13 +450,21 @@
       }
 
       const currentCps = cps();
+      const windowMs = Math.max(0, now - Number(observation.createdAtMs || now));
+      const delta = currentCps - Number(observation.baselineCps || 0);
+      const activeBuff = typeof Game.hasBuff === 'function' && (
+        Game.hasBuff('Click frenzy') || Game.hasBuff('Frenzy') || Game.hasBuff('Dragonflight')
+      );
       ready.push({
         ...observation,
         kind: 'upgrade-observation',
         afterCps: currentCps,
-        observedCpsDelta: Math.max(0, currentCps - Number(observation.baselineCps || 0)),
+        observedCpsDelta: Math.max(0, delta),
+        rawCpsDelta: delta,
+        contaminated: Boolean(activeBuff),
+        contaminationReason: activeBuff ? 'buff ativo durante a janela' : null,
         observedAt: new Date(now).toISOString(),
-        observationWindowMs: Math.max(0, now - Number(observation.createdAtMs || now))
+        observationWindowMs: windowMs
       });
     });
 
@@ -471,6 +481,12 @@
   function recordUpgradeObservation(upgrade, analysis, before, after) {
     if (!upgrade) return false;
     const now = Date.now();
+    const cooldown = Math.max(0, Number(CONFIG.upgradeObservationCooldownMs) || 7000);
+    const duplicate = state.pendingUpgradeObservations.some(o =>
+      o && (o.id === upgrade.id || o.name === String(upgrade.name || upgrade.id)) &&
+      now - Number(o.createdAtMs || 0) < cooldown
+    );
+    if (duplicate) return false;
     state.pendingUpgradeObservations.push({
       id: upgrade.id,
       name: String(upgrade.name || upgrade.id || 'upgrade'),
@@ -820,10 +836,14 @@
     const observations = state.upgradeObservations.filter(o =>
       o && (o.id === upgrade.id || o.name === String(upgrade.name || upgrade.id))
     );
-    const observedAverage = observations.length
-      ? observations.reduce((sum, o) => sum + Math.max(0, Number(o.observedCpsDelta || 0)), 0) / observations.length
+    const cleanObservations = observations.filter(o => o.contaminated !== true);
+    const observedAverage = cleanObservations.length
+      ? cleanObservations.reduce((sum, o) => sum + Math.max(0, Number(o.observedCpsDelta || 0)), 0) / cleanObservations.length
       : 0;
-    const statisticalWeight = observations.length ? Math.min(0.60, 0.15 + observations.length * 0.05) : 0;
+    const maxStatisticalWeight = Math.max(0, Math.min(0.90, Number(CONFIG.upgradeStatisticalMaxWeight) || 0.60));
+    const statisticalWeight = cleanObservations.length
+      ? Math.min(maxStatisticalWeight, 0.15 + cleanObservations.length * 0.05)
+      : 0;
     const expectedGainPerSecond = estimatedCpsGain * (1 - statisticalWeight) +
       observedAverage * statisticalWeight;
     const paybackSeconds = price > 0 && expectedGainPerSecond > 0
@@ -844,7 +864,7 @@
     state.stats.upgradeAnalyses = (state.stats.upgradeAnalyses || 0) + 1;
     return {
       price, estimatedCpsGain, estimatedClickGain, utilityScore,
-      expectedGainPerSecond, observedAverage, observations: observations.length,
+      expectedGainPerSecond, observedAverage, observations: observations.length, cleanObservations: cleanObservations.length,
       statisticalWeight, paybackSeconds, affordableNow, worthIt, score,
       signals: keywordSignals
     };
