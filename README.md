@@ -497,3 +497,30 @@ A V6.13 continua a reconstrução modular da V6 e melhora a parte estatística d
 A V6 passa a separar **estimativa** de **observação real**. O motor econômico ainda usa heurísticas para decidir imediatamente, mas pode acumular evidência de execuções anteriores para ajustar o valor esperado dos upgrades.
 
 > Validação desta etapa: análise estrutural do código no GitHub. Não foi executada uma sessão real dentro do Cookie Clicker nesta etapa.
+
+
+## V6.14 — Observabilidade da ascensão
+
+A V6.14 fortalece o módulo de ascensão sem alterar o comportamento automático padrão.
+
+### Novidades
+
+- novo estado `ascensionOutcome`;
+- registro explícito de início, sucesso, falha e reencarnação;
+- novo `ascensionReport()`;
+- o relatório geral passa a incluir o estado da ascensão;
+- o status da sessão passa a expor `ascensionPhase`;
+- falhas de ascensão preservam a causa e o momento da falha;
+- uma ascensão verificada registra ganho de prestígio e ganho percentual estimado.
+
+### Fluxo observado
+
+`READY → ASCENDING → RECOVERING → WAITING_REINCARNATION → READY`
+
+Em caso de falha:
+
+`qualquer estado de transição → FAILED → PAUSED`
+
+Isso deixa a V6 mais diagnosticável quando uma ascensão apresentar comportamento diferente do esperado no runtime.
+
+> Validação desta etapa: análise estrutural do código no GitHub. Não foi executada uma sessão real dentro do Cookie Clicker.
