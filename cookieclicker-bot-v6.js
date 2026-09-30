@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.10.0';
+  const VERSION = '6.11.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
