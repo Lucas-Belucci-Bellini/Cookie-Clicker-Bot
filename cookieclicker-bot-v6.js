@@ -742,44 +742,73 @@
   }
 
   function performAscension() {
-    if (!gameReady() || state.ascending || !shouldAscend()) return false;
+    const analysis = ascensionAnalysis();
+    if (!gameReady() || state.ascending || !CONFIG.autoAscend || !analysis.worthIt) return false;
     if (typeof Game.Ascend !== 'function') return false;
 
     state.ascending = true;
-    const gain = prestigeGain();
 
-    return safe(() => {
+    try {
       Game.Ascend(1);
       state.stats.ascensions++;
       state.lastAction = 'ascensão';
 
       registerTimeout('pós-ascensão', CONFIG.postAscensionDelayMs, () => {
-        buyHeavenlyUpgrades();
+        try {
+          buyHeavenlyUpgrades();
 
-        if (CONFIG.autoReincarnate && typeof Game.Reincarnate === 'function') {
-          registerTimeout('reencarnação', CONFIG.postAscensionDelayMs, () => {
-            Game.Reincarnate(1);
-            state.stats.reincarnations++;
-            state.lastAction = 'reencarnação';
-            state.ascending = false;
-          });
-        } else {
+          if (CONFIG.autoReincarnate && typeof Game.Reincarnate === 'function') {
+            registerTimeout('reencarnação', CONFIG.postAscensionDelayMs, () => {
+              try {
+                Game.Reincarnate(1);
+                state.stats.reincarnations++;
+                state.lastAction = 'reencarnação';
+              } catch (error) {
+                state.stats.errors++;
+                state.lastError = String(error.message || error);
+                log('error', 'reencarnação falhou', error);
+              } finally {
+                state.ascending = false;
+                if (CONFIG.autoReincarnate) {
+                  state.active = true;
+                  state.paused = false;
+                  configureTimers();
+                }
+              }
+            });
+            return;
+          }
+
           state.ascending = false;
+          state.active = false;
+          state.paused = true;
+          clearAllTimers();
+          log('warn', 'Ascensão concluída; bot pausado porque autoReincarnate está desativado.');
+        } catch (error) {
+          state.stats.errors++;
+          state.lastError = String(error.message || error);
+          state.ascending = false;
+          state.active = false;
+          state.paused = true;
+          clearAllTimers();
+          log('error', 'pós-ascensão falhou; bot pausado por segurança', error);
         }
       });
 
-      log('info', 'Ascensão executada com +' + String(gain) + ' prestígio.');
-      if (!CONFIG.autoReincarnate || typeof Game.Reincarnate !== 'function') {
-        state.active = false;
-        state.paused = true;
-        clearAllTimers();
-        state.ascending = false;
-        log('warn', 'Ascensão concluída; bot pausado porque autoReincarnate está desativado.');
-        return true;
-      }
-
+      log('info', 'Ascensão executada: +' + String(analysis.gain) +
+        ' prestígio; ganho permanente estimado de ' +
+        String(analysis.multiplierGainPercent.toFixed(2)) + '%.');
       return true;
-    }, false, 'ascensão falhou');
+    } catch (error) {
+      state.ascending = false;
+      state.active = false;
+      state.paused = true;
+      clearAllTimers();
+      state.stats.errors++;
+      state.lastError = String(error.message || error);
+      log('error', 'ascensão falhou; bot pausado por segurança', error);
+      return false;
+    }
   }
 
   function tryAscend() {
