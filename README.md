@@ -325,3 +325,15 @@ CookieBotV5.config({ spendingLimit: 0.25 })
 ```
 
 A V5 é deliberadamente independente: V1, V2, V3 e V4 continuam disponíveis para comparação, testes e evolução incremental.
+
+
+## V5.1 — Hardening
+
+A V5 recebeu uma rodada adicional de endurecimento sem remover a V5.0:
+
+- timers de pós-ascensão agora ficam registrados e podem ser cancelados por `stop()` e `emergencyStop()`;
+- diagnóstico não depende de acessar `Game` quando o jogo ainda não existe;
+- o fluxo de ascensão/reencarnação usa o mesmo sistema central de timers;
+- versão interna atualizada para `5.1.0`.
+
+> Observação: a V5.1 foi revisada estaticamente. O repositório ainda não possui um teste automatizado que execute o bot dentro do runtime real do Cookie Clicker, então compatibilidade dos minigames deve ser validada no jogo antes de tratar todos os módulos como garantidos.
