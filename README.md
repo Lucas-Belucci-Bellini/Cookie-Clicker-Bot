@@ -25,6 +25,20 @@ CookieBotV6.config({
 })
 ```
 
+## V6.3 — Persistência e Histórico
+
+A V6.3 adiciona persistência local sem acoplar o runtime a uma camada externa.
+
+- histórico limitado por historyMaxEntries;
+- armazenamento em localStorage;
+- carregamento automático ao iniciar;
+- snapshots dos relatórios;
+- performanceHistory() para consulta;
+- clearHistory() para limpeza explícita;
+- falhas de persistência são isoladas pelo safe().
+
+APIs: CookieBotV6.loadHistory(), .saveHistory(entry), .performanceHistory() e .clearHistory().
+
 ## V6.2 — Módulo Econômico
 
 A V6.2 reconstrói o motor econômico da V5 como um módulo independente do runtime.
