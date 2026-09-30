@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.13.0';
+  const VERSION = '6.14.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -110,6 +110,7 @@
     taskHealth: new Map(),
     ascensionPhase: 'READY',
     ascensionSnapshot: null,
+    ascensionOutcome: null,
     upgradeObservations: [],
     pendingUpgradeObservations: [],
     healthHistory: [],
@@ -492,6 +493,7 @@
       budget: economicBudget(),
       economicDecisions: state.stats.economicDecisions,
       economicNoops: state.stats.economicNoops,
+      ascension: ascensionReport(),
       lastAction: state.lastAction
     };
     saveHistory(data);
@@ -897,10 +899,33 @@
     return cookieDrop || resetIncreased || reincarnated;
   }
 
+  function ascensionReport() {
+    const analysis = ascensionAnalysis();
+    const snapshot = state.ascensionSnapshot;
+    return {
+      phase: state.ascensionPhase,
+      active: state.active,
+      paused: state.paused,
+      ascending: state.ascending,
+      analysis,
+      snapshot: snapshot ? { ...snapshot } : null,
+      outcome: state.ascensionOutcome ? { ...state.ascensionOutcome } : null,
+      failures: state.stats.ascensionFailures || 0,
+      ascensions: state.stats.ascensions || 0,
+      reincarnations: state.stats.reincarnations || 0
+    };
+  }
+
   function failAscension(reason, error) {
     state.stats.ascensionFailures = (state.stats.ascensionFailures || 0) + 1;
     state.stats.errors++;
     state.lastError = String((error && (error.message || error)) || reason);
+    state.ascensionOutcome = {
+      ok: false,
+      reason: String(reason),
+      error: error ? String(error.message || error) : null,
+      at: new Date().toISOString()
+    };
     state.ascensionPhase = 'FAILED';
     state.ascending = false;
     state.active = false;
@@ -917,6 +942,11 @@
 
     state.ascending = true;
     state.ascensionPhase = 'ASCENDING';
+    state.ascensionOutcome = {
+      ok: null,
+      reason: 'ascensão em andamento',
+      startedAt: new Date().toISOString()
+    };
     state.ascensionSnapshot = {
       cookies: cookies(),
       cps: cps(),
@@ -939,6 +969,13 @@
           return failAscension('ascensão não pôde ser verificada com segurança');
         }
 
+        state.ascensionOutcome = {
+          ok: true,
+          reason: 'ascensão verificada',
+          verifiedAt: new Date().toISOString(),
+          gain: analysis.gain,
+          multiplierGainPercent: analysis.multiplierGainPercent
+        };
         state.ascensionPhase = 'RECOVERING';
         registerTimeout('pós-ascensão', CONFIG.postAscensionDelayMs, () => {
           try {
@@ -957,6 +994,11 @@
                   state.ascensionPhase = 'READY';
                   state.ascending = false;
                   state.ascensionSnapshot = null;
+                  state.ascensionOutcome = {
+                    ...(state.ascensionOutcome || {}),
+                    reincarnated: true,
+                    reincarnatedAt: new Date().toISOString()
+                  };
                   state.active = true;
                   state.paused = false;
                   configureTimers();
@@ -1163,6 +1205,7 @@
       cps: cps(),
       prestige: gameExists() ? Number(Game.prestige || 0) : 0,
       prestigeGain: prestigeGain(),
+      ascensionPhase: state.ascensionPhase,
       cookiesPerHour: elapsed > 0 ? Math.max(0, (cookies() - state.cookiesAtStart) / elapsed) : 0,
       lastAction: state.lastAction,
       lastError: state.lastError
@@ -1535,6 +1578,7 @@
       status,
       diagnostics,
       report,
+      ascensionReport,
       config,
       prestigeGain,
       shouldAscend,
