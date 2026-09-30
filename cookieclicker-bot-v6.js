@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.3.0';
+  const VERSION = '6.4.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -50,6 +50,9 @@
     grimoire: false,
     garden: false,
     market: false,
+    grimoireEnabled: false,
+    grimoireSpell: '',
+    grimoireMinMagic: 0,
     pantheon: false,
     dragon: false,
 
@@ -79,6 +82,7 @@
       economicDecisions: 0,
       economicNoops: 0,
       historySaves: 0,
+      grimoireCasts: 0,
       errors: 0,
       ticks: 0
     }
@@ -352,6 +356,51 @@
     console.table(data);
     console.groupEnd();
     return data;
+  }
+
+
+  function grimoireMinigame() {
+    const obj = Game && Game.ObjectsById && Game.ObjectsById[7];
+    return obj && obj.minigame ? obj.minigame : null;
+  }
+
+  function grimoireSpellList(minigame) {
+    if (!minigame) return [];
+    if (Array.isArray(minigame.spells)) return minigame.spells;
+    if (minigame.spellsByName && typeof minigame.spellsByName === 'object') {
+      return Object.keys(minigame.spellsByName).map(k => minigame.spellsByName[k]);
+    }
+    return [];
+  }
+
+  function findGrimoireSpell(minigame) {
+    const requested = String(CONFIG.grimoireSpell || '').trim().toLowerCase();
+    const spells = grimoireSpellList(minigame);
+    if (requested) {
+      return spells.find(s => String(s.name || '').toLowerCase() === requested) ||
+        spells.find(s => String(s.name || '').toLowerCase().includes(requested)) || null;
+    }
+    return spells.find(s => /frenzy|conjure|hand of fate/i.test(String(s.name || ''))) || spells[0] || null;
+  }
+
+  function castGrimoire() {
+    if (!CONFIG.grimoireEnabled || isPaused() || !gameReady()) return false;
+    const minigame = grimoireMinigame();
+    if (!minigame || typeof minigame.castSpell !== 'function') return false;
+
+    const magic = Number(minigame.magic);
+    const minMagic = Math.max(0, Number(CONFIG.grimoireMinMagic) || 0);
+    if (Number.isFinite(magic) && magic < minMagic) return false;
+
+    const spell = findGrimoireSpell(minigame);
+    if (!spell) return false;
+
+    return safe(() => {
+      const result = minigame.castSpell(spell);
+      state.stats.grimoireCasts++;
+      state.lastAction = 'grimoire:' + String(spell.name || spell.id || 'spell');
+      return result !== false;
+    }, false, 'Grimoire falhou');
   }
 
   function purchaseCycle() {
@@ -644,6 +693,7 @@
     addTimer('status', CONFIG.statusMs, status);
     addTimer('report', CONFIG.reportMs, report);
     addTimer('economicReport', CONFIG.reportMs, economicReport);
+    if (CONFIG.grimoireEnabled) addTimer('grimoire', CONFIG.shimmerMs, castGrimoire);
   }
 
   function stop() {
@@ -726,6 +776,9 @@
       saveHistory,
       performanceHistory,
       clearHistory,
+      grimoireMinigame,
+      findGrimoireSpell,
+      castGrimoire,
       moduleStatus
     };
   }
