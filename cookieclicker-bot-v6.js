@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.11.0';
+  const VERSION = '6.12.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -34,6 +34,8 @@
     ascensionMinGainRatio: 0.05,
     ascensionMaxRecoverySeconds: 21600,
     ascensionRecoverySafetyFactor: 3,
+    ascensionMaxPaybackSeconds: 43200,
+    ascensionVerificationDelayMs: 1200,
 
     // Estourar wrinklers por padrão também fica desligado.
     popWrinklers: false,
@@ -104,6 +106,9 @@
     taskDurationMs: new Map(),
     taskLastSuccess: new Map(),
     taskHealth: new Map(),
+    ascensionPhase: 'READY',
+    ascensionSnapshot: null,
+    upgradeObservations: [],
     healthHistory: [],
     timeouts: new Set(),
     ascending: false,
@@ -133,6 +138,9 @@
       watchdogRestarts: 0,
       healthChecks: 0,
       healthRecoveries: 0,
+      upgradeAnalyses: 0,
+      ascensionChecks: 0,
+      ascensionFailures: 0,
       errors: 0,
       ticks: 0
     }
@@ -273,19 +281,19 @@
 
     const candidates = Game.UpgradesInStore
       .filter(u => u && !u.bought && typeof u.buy === 'function')
-      .map(u => ({ item: u, price: safe(() => Number(u.getPrice()), Infinity, 'preço de upgrade inválido') }))
-      .filter(x => affordable(x.price))
-      .sort((a, b) => a.price - b.price);
+      .map(u => ({ item: u, analysis: upgradeAnalysis(u) }))
+      .filter(x => x.analysis && x.analysis.worthIt)
+      .sort((a, b) => Number(b.analysis.score || 0) - Number(a.analysis.score || 0));
 
     const choice = candidates[0];
     if (!choice) return false;
 
-    return safe(() => {
-      choice.item.buy();
-      state.stats.upgrades++;
-      state.lastAction = 'upgrade:' + String(choice.item.name || choice.item.id);
-      return true;
-    }, false, 'compra de upgrade falhou');
+    return executeEconomicAction({
+      type: 'upgrade',
+      item: choice.item,
+      score: choice.analysis.score,
+      analysis: choice.analysis
+    });
   }
 
   function buyBestBuilding() {
@@ -347,17 +355,9 @@
 
   function economicScoreUpgrade(upgrade) {
     if (!upgrade || upgrade.bought || typeof upgrade.buy !== 'function') return 0;
-    const price = safe(() => Number(upgrade.getPrice()), Infinity, 'preço de upgrade inválido');
-    if (!Number.isFinite(price) || price <= 0 || price > economicBudget()) return 0;
-
-    const profile = upgradeStatProfile(upgrade);
-    const value = Math.max(0.000001, Number(profile?.utilityScore || 0));
-    const payback = price / value;
-    const affordability = Math.max(0, Math.min(1, economicBudget() / price));
-
-    return economicEfficiency(price, value, payback) *
-      Number(CONFIG.upgradeValueWeight || 1) *
-      affordability;
+    const analysis = upgradeAnalysis(upgrade);
+    if (!analysis || !analysis.worthIt) return 0;
+    return Number(analysis.score || 0);
   }
 
   function chooseEconomicAction() {
@@ -381,10 +381,22 @@
   function executeEconomicAction(action) {
     if (!action || isPaused()) return false;
     return safe(() => {
+      const before = {
+        cookies: cookies(),
+        cps: cps(),
+        time: Date.now()
+      };
       action.item.buy(1);
+      const after = {
+        cookies: cookies(),
+        cps: cps(),
+        time: Date.now()
+      };
+
       if (action.type === 'upgrade') {
         state.stats.upgrades++;
         state.lastAction = 'upgrade:economia:' + String(action.item.name || action.item.id);
+        recordUpgradeObservation(action.item, action.analysis || upgradeAnalysis(action.item), before, after);
       } else {
         state.stats.buildings++;
         state.lastAction = 'building:economia:' + String(action.item.name || action.item.id);
@@ -392,6 +404,25 @@
       state.stats.economicDecisions++;
       return true;
     }, false, 'decisão econômica falhou');
+  }
+
+  function recordUpgradeObservation(upgrade, analysis, before, after) {
+    if (!upgrade) return false;
+    const observation = {
+      kind: 'upgrade-observation',
+      id: upgrade.id,
+      name: String(upgrade.name || upgrade.id || 'upgrade'),
+      price: Number(analysis?.price || 0),
+      expectedCpsGain: Number(analysis?.estimatedCpsGain || 0),
+      expectedClickGain: Number(analysis?.estimatedClickGain || 0),
+      beforeCps: Number(before?.cps || 0),
+      afterCps: Number(after?.cps || 0),
+      observedCpsDelta: Math.max(0, Number(after?.cps || 0) - Number(before?.cps || 0)),
+      observedAt: new Date().toISOString()
+    };
+    state.upgradeObservations.push(observation);
+    if (state.upgradeObservations.length > 48) state.upgradeObservations = state.upgradeObservations.slice(-48);
+    return true;
   }
 
   function economicReport() {
@@ -627,6 +658,7 @@
   }
 
   function ascensionAnalysis() {
+    state.stats.ascensionChecks = (state.stats.ascensionChecks || 0) + 1;
     if (!gameReady()) {
       return {
         worthIt: false,
@@ -664,31 +696,27 @@
     const minGainRatio = Math.max(0, Number(CONFIG.ascensionMinGainRatio) || 0);
     const gainRatio = currentPrestige > 0 ? gain / currentPrestige : Infinity;
     const maxRecovery = Math.max(0, Number(CONFIG.ascensionMaxRecoverySeconds) || 0);
+    const maxPayback = Math.max(0, Number(CONFIG.ascensionMaxPaybackSeconds) || 0);
     const threshold = Math.max(0, Number(CONFIG.prestigeThreshold) || 0);
 
     const enoughPrestige = gain >= threshold;
     const meaningfulGain = currentPrestige === 0 || gainRatio >= minGainRatio;
     const recoverable = recoverySeconds <= maxRecovery;
-    const worthIt = enoughPrestige && meaningfulGain && recoverable;
+    const paybackAcceptable = estimatedPaybackSeconds <= maxPayback;
+    const worthIt = enoughPrestige && meaningfulGain && recoverable && paybackAcceptable;
 
     let reason = 'ascensão não compensa neste momento';
     if (!enoughPrestige) reason = 'ganho de prestígio abaixo do limite';
     else if (!meaningfulGain) reason = 'ganho percentual de prestígio pequeno';
     else if (!recoverable) reason = 'tempo estimado de recuperação muito alto';
-    else reason = 'ganho permanente supera o custo estimado de recuperação';
+    else if (!paybackAcceptable) reason = 'payback estimado muito alto';
+    else reason = 'ganho permanente supera recuperação e payback estimados';
 
     return {
-      worthIt,
-      reason,
-      currentPrestige,
-      potentialPrestige,
-      gain,
-      gainRatio,
-      currentMultiplier,
-      projectedMultiplier,
-      multiplierGainPercent,
-      recoverySeconds,
-      estimatedPaybackSeconds
+      worthIt, reason, currentPrestige, potentialPrestige, gain, gainRatio,
+      currentMultiplier, projectedMultiplier, multiplierGainPercent,
+      recoverySeconds, estimatedPaybackSeconds,
+      thresholds: { minGainRatio, maxRecovery, maxPayback, prestigeThreshold: threshold }
     };
   }
 
@@ -698,6 +726,7 @@
     const desc = String(upgrade.desc || '').toLowerCase();
     const name = String(upgrade.name || '').toLowerCase();
     const text = desc + ' ' + name;
+    const price = safe(() => Number(upgrade.getPrice()), Infinity, 'preço de upgrade inválido');
 
     const directCps = Number(upgrade.cps || 0);
     const cpsMultiplier = Number(upgrade.cpsMult || upgrade.cpsMultPercent || 0);
@@ -724,17 +753,44 @@
       Math.max(0, clickMultiplier) * Math.max(1, cps() * 0.01) +
       keywordSignals.click * Math.max(1, cps() * 0.01);
 
-    const utilityScore =
-      estimatedCpsGain * 2 +
-      estimatedClickGain +
+    const utilityScore = estimatedCpsGain * 2 + estimatedClickGain +
       keywordSignals.building * Math.max(1, cps() * 0.01);
 
+    const observations = state.upgradeObservations.filter(o =>
+      o && (o.id === upgrade.id || o.name === String(upgrade.name || upgrade.id))
+    );
+    const observedAverage = observations.length
+      ? observations.reduce((sum, o) => sum + Math.max(0, Number(o.observedCpsDelta || 0)), 0) / observations.length
+      : 0;
+    const statisticalWeight = observations.length ? Math.min(0.60, 0.15 + observations.length * 0.05) : 0;
+    const expectedGainPerSecond = estimatedCpsGain * (1 - statisticalWeight) +
+      observedAverage * statisticalWeight;
+    const paybackSeconds = price > 0 && expectedGainPerSecond > 0
+      ? price / expectedGainPerSecond
+      : Infinity;
+    const budget = economicBudget();
+    const affordableNow = Number.isFinite(price) && price > 0 && price <= budget;
+    const paybackTarget = Math.max(1, Number(CONFIG.targetPaybackSeconds) || 3600);
+    const worthIt = affordableNow && expectedGainPerSecond > 0 && paybackSeconds <= paybackTarget * 2;
+    const affordability = price > 0 && Number.isFinite(price)
+      ? Math.max(0, Math.min(1, budget / price))
+      : 0;
+    const score = worthIt
+      ? economicEfficiency(price, expectedGainPerSecond, paybackSeconds) *
+        Number(CONFIG.upgradeValueWeight || 1) * affordability
+      : 0;
+
+    state.stats.upgradeAnalyses = (state.stats.upgradeAnalyses || 0) + 1;
     return {
-      estimatedCpsGain,
-      estimatedClickGain,
-      utilityScore,
+      price, estimatedCpsGain, estimatedClickGain, utilityScore,
+      expectedGainPerSecond, observedAverage, observations: observations.length,
+      statisticalWeight, paybackSeconds, affordableNow, worthIt, score,
       signals: keywordSignals
     };
+  }
+
+  function upgradeAnalysis(upgrade) {
+    return upgradeStatProfile(upgrade);
   }
 
   function shouldAscend() {
@@ -772,58 +828,97 @@
     return id;
   }
 
+  function verifyAscensionTransition(snapshot) {
+    if (!gameReady() || !snapshot) return false;
+    const currentCookies = cookies();
+    const resetNow = Number(Game.cookiesReset || 0);
+    const cookieDrop = currentCookies < snapshot.cookies * 0.25;
+    const resetIncreased = resetNow > snapshot.cookiesReset;
+    const reincarnated = typeof Game.Reincarnate === 'function' && Number(Game.cookies || 0) === 0 && snapshot.cookies > 0;
+    return cookieDrop || resetIncreased || reincarnated;
+  }
+
+  function failAscension(reason, error) {
+    state.stats.ascensionFailures = (state.stats.ascensionFailures || 0) + 1;
+    state.stats.errors++;
+    state.lastError = String((error && (error.message || error)) || reason);
+    state.ascensionPhase = 'FAILED';
+    state.ascending = false;
+    state.active = false;
+    state.paused = true;
+    clearAllTimers();
+    log('error', reason, error);
+    return false;
+  }
+
   function performAscension() {
     const analysis = ascensionAnalysis();
     if (!gameReady() || state.ascending || !CONFIG.autoAscend || !analysis.worthIt) return false;
     if (typeof Game.Ascend !== 'function') return false;
 
     state.ascending = true;
+    state.ascensionPhase = 'ASCENDING';
+    state.ascensionSnapshot = {
+      cookies: cookies(),
+      cps: cps(),
+      prestige: Number(Game.prestige || 0),
+      cookiesReset: Number(Game.cookiesReset || 0),
+      startedAt: Date.now(),
+      analysis
+    };
 
     try {
       Game.Ascend(1);
       state.stats.ascensions++;
       state.lastAction = 'ascensão';
 
-      registerTimeout('pós-ascensão', CONFIG.postAscensionDelayMs, () => {
-        try {
-          buyHeavenlyUpgrades();
+      registerTimeout('verificação-pós-ascensão', CONFIG.ascensionVerificationDelayMs, () => {
+        const snapshot = state.ascensionSnapshot;
+        if (!snapshot) return failAscension('estado de ascensão perdido');
 
-          if (CONFIG.autoReincarnate && typeof Game.Reincarnate === 'function') {
-            registerTimeout('reencarnação', CONFIG.postAscensionDelayMs, () => {
-              try {
-                Game.Reincarnate(1);
-                state.stats.reincarnations++;
-                state.lastAction = 'reencarnação';
-              } catch (error) {
-                state.stats.errors++;
-                state.lastError = String(error.message || error);
-                log('error', 'reencarnação falhou', error);
-              } finally {
-                state.ascending = false;
-                if (CONFIG.autoReincarnate) {
+        if (!verifyAscensionTransition(snapshot)) {
+          return failAscension('ascensão não pôde ser verificada com segurança');
+        }
+
+        state.ascensionPhase = 'RECOVERING';
+        registerTimeout('pós-ascensão', CONFIG.postAscensionDelayMs, () => {
+          try {
+            if (!gameReady()) return failAscension('jogo não ficou pronto após ascensão');
+
+            buyHeavenlyUpgrades();
+
+            if (CONFIG.autoReincarnate && typeof Game.Reincarnate === 'function') {
+              state.ascensionPhase = 'WAITING_REINCARNATION';
+              registerTimeout('reencarnação', CONFIG.postAscensionDelayMs, () => {
+                try {
+                  if (!gameReady()) return failAscension('jogo não ficou pronto para reencarnação');
+                  Game.Reincarnate(1);
+                  state.stats.reincarnations++;
+                  state.lastAction = 'reencarnação';
+                  state.ascensionPhase = 'READY';
+                  state.ascending = false;
+                  state.ascensionSnapshot = null;
                   state.active = true;
                   state.paused = false;
                   configureTimers();
+                } catch (error) {
+                  failAscension('reencarnação falhou; bot pausado por segurança', error);
                 }
-              }
-            });
-            return;
-          }
+              });
+              return;
+            }
 
-          state.ascending = false;
-          state.active = false;
-          state.paused = true;
-          clearAllTimers();
-          log('warn', 'Ascensão concluída; bot pausado porque autoReincarnate está desativado.');
-        } catch (error) {
-          state.stats.errors++;
-          state.lastError = String(error.message || error);
-          state.ascending = false;
-          state.active = false;
-          state.paused = true;
-          clearAllTimers();
-          log('error', 'pós-ascensão falhou; bot pausado por segurança', error);
-        }
+            state.ascensionPhase = 'READY';
+            state.ascending = false;
+            state.ascensionSnapshot = null;
+            state.active = false;
+            state.paused = true;
+            clearAllTimers();
+            log('warn', 'Ascensão verificada; bot pausado porque autoReincarnate está desativado.');
+          } catch (error) {
+            failAscension('pós-ascensão falhou; bot pausado por segurança', error);
+          }
+        });
       });
 
       log('info', 'Ascensão executada: +' + String(analysis.gain) +
@@ -831,14 +926,7 @@
         String(analysis.multiplierGainPercent.toFixed(2)) + '%.');
       return true;
     } catch (error) {
-      state.ascending = false;
-      state.active = false;
-      state.paused = true;
-      clearAllTimers();
-      state.stats.errors++;
-      state.lastError = String(error.message || error);
-      log('error', 'ascensão falhou; bot pausado por segurança', error);
-      return false;
+      return failAscension('ascensão falhou; bot pausado por segurança', error);
     }
   }
 
@@ -1386,6 +1474,7 @@
       config,
       prestigeGain,
       shouldAscend,
+      upgradeAnalysis,
       buyHeavenlyUpgrades,
       performAscension,
       clickCookie,
@@ -1429,6 +1518,7 @@
       manageSugarLump,
       ascensionAnalysis,
       upgradeStatProfile,
+      verifyAscensionTransition,
       moduleStatus,
       operationalState,
       registerTask,
