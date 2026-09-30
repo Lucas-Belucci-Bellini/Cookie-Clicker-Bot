@@ -123,6 +123,8 @@
       dragonAuraChanges: 0,
       seasonsStarted: 0,
       sugarLumpsHarvested: 0,
+      schedulerTicks: 0,
+      watchdogRestarts: 0,
       errors: 0,
       ticks: 0
     }
