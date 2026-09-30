@@ -215,3 +215,26 @@ Pronto para dominar o multiverso dos cookies sem esforço?
 Cole o script e relaxa. O bot cuida do resto. 🍪✨
 
 ============================================================================================ 
+
+
+# 🛠️ Manutenção das versões existentes
+
+As versões V1, V2, V3 e V4 são mantidas separadamente e continuam sendo scripts independentes para uso direto no console.
+
+## Melhorias aplicadas
+
+- **V1:** corrigido o cálculo de prestígio disponível e adicionada proteção contra duplicação do ciclo de inicialização.
+- **V2:** endurecido o cálculo de prestígio e melhorada a identificação de wrinklers ativos.
+- **V3:** corrigido o cálculo de prestígio e usado o preço atual do edifício quando disponível para a decisão de compra.
+- **V4:** fortalecido o cálculo de ROI dos edifícios, melhorado o controle do timer pós-ascensão e adicionado diagnóstico para falhas de clique.
+
+## Política de evolução
+
+As versões existentes são aprimoradas incrementalmente na **main**. A evolução preserva a identidade de cada bot em vez de substituir V1–V4 por uma única implementação.
+
+### Histórico recente
+
+- `fix(v1): corrigir cálculo de prestígio e reinicialização segura`
+- `fix(v2): endurecer cálculo de prestígio e detecção de wrinklers`
+- `fix(v3): endurecer prestígio e preço marginal de edifícios`
+- `fix(v4): fortalecer timer pós-ascensão e cálculo de ROI`
