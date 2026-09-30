@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.7.0';
+  const VERSION = '6.8.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -69,6 +69,11 @@
     pantheonSlot: 0,
     pantheonGod: '',
     dragon: false,
+    dragonEnabled: false,
+    dragonAura: '',
+    dragonPreferClickFrenzy: true,
+    seasonsEnabled: false,
+    seasonPriority: ['christmas', 'halloween', 'easter', 'valentines', 'fools'],
 
     logging: true
   };
@@ -102,6 +107,8 @@
       marketBuys: 0,
       marketSells: 0,
       pantheonChanges: 0,
+      dragonAuraChanges: 0,
+      seasonsStarted: 0,
       errors: 0,
       ticks: 0
     }
@@ -816,7 +823,7 @@
   }
 
   function pantheonMinigame() {
-    const temple = Game && Game.ObjectsById && Game.ObjectsById[13];
+    const temple = Game && Game.ObjectsById && Game.ObjectsById[6];
     return temple && temple.minigame ? temple.minigame : null;
   }
 
@@ -866,6 +873,69 @@
     }, false, 'Pantheon falhou');
   }
 
+  function dragonAuras() {
+    if (!gameExists()) return [];
+    const source = Game.dragonAuras;
+    if (!source) return [];
+    if (Array.isArray(source)) return source.filter(Boolean);
+    return Object.keys(source).map(key => source[key]).filter(Boolean);
+  }
+
+  function findDragonAura(name) {
+    const requested = String(name || '').trim().toLowerCase();
+    if (!requested) return null;
+    return dragonAuras().find(aura =>
+      String(aura.name || '').toLowerCase() === requested
+    ) || dragonAuras().find(aura =>
+      String(aura.name || '').toLowerCase().includes(requested)
+    ) || null;
+  }
+
+  function manageDragon() {
+    if (!CONFIG.dragonEnabled || isPaused() || !gameReady()) return false;
+    if (typeof Game.SetDragonAura !== 'function') return false;
+    if (Number(Game.dragonLevel || 0) < 5) return false;
+
+    const preferred = hasBuff('click frenzy') && CONFIG.dragonPreferClickFrenzy
+      ? "Dragon's Fortune"
+      : (CONFIG.dragonAura || 'Radiant Appetite');
+
+    const aura = findDragonAura(preferred);
+    if (!aura) return false;
+
+    const auraId = Number(aura.id);
+    if (!Number.isFinite(auraId)) return false;
+    if (Number(Game.dragonAura) === auraId) return false;
+
+    return safe(() => {
+      const result = Game.SetDragonAura(auraId, 0);
+      if (result !== false) {
+        state.stats.dragonAuraChanges++;
+        state.lastAction = 'dragon-aura:' + String(aura.name || aura.id);
+        return true;
+      }
+      return false;
+    }, false, 'aura do dragão falhou');
+  }
+
+  function manageSeason() {
+    if (!CONFIG.seasonsEnabled || isPaused() || !gameReady()) return false;
+    if (typeof Game.startSeason !== 'function') return false;
+    if (Game.season) return false;
+
+    const priorities = Array.isArray(CONFIG.seasonPriority) ? CONFIG.seasonPriority : [];
+    for (const season of priorities) {
+      if (!season) continue;
+      const started = safe(() => Game.startSeason(season), false, 'temporada falhou');
+      if (started !== false) {
+        state.stats.seasonsStarted++;
+        state.lastAction = 'season:' + String(season);
+        return true;
+      }
+    }
+    return false;
+  }
+
   function moduleStatus() {
     if (!gameExists()) return {};
     const wizard = Game.Objects && Game.Objects['Wizard tower'];
@@ -881,7 +951,8 @@
       garden: !!(farm && farm.minigame),
       market: !!(bank && bank.minigame),
       pantheon: !!(temple && temple.minigame && typeof temple.minigame.slotGod === 'function'),
-      dragon: typeof Game.SetDragonAura === 'function' && Number(Game.dragonLevel || 0) >= 5
+      dragon: typeof Game.SetDragonAura === 'function' && Number(Game.dragonLevel || 0) >= 5,
+      seasons: typeof Game.startSeason === 'function'
     };
   }
 
@@ -1138,6 +1209,10 @@
       pantheonGods,
       findPantheonGod,
       managePantheon,
+      dragonAuras,
+      findDragonAura,
+      manageDragon,
+      manageSeason,
       ascensionAnalysis,
       upgradeStatProfile,
       moduleStatus
