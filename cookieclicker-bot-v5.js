@@ -935,6 +935,11 @@
     registerTask('dragon', CONFIG.dragonScanMs, 20, manageDragon);
     registerTask('season', CONFIG.seasonScanMs, 15, manageSeason);
     registerTask('sugarLump', CONFIG.sugarLumpScanMs, 10, manageSugarLump);
+    registerTask('prestige', CONFIG.prestigeScanMs, 90, () => {
+      if (capability('prestige') && shouldAscend()) performAscension();
+    });
+    registerTask('periodicReport', CONFIG.reportIntervalMs, 5, periodicReport);
+    if (CONFIG.periodicStatus) registerTask('status', CONFIG.statusScanMs, 4, showStatus);
     return state.schedulerTasks.size;
   }
 
@@ -956,28 +961,6 @@
     state.lastCookies = state.cookiesAtStart;
 
     startClicker();
-    if (capability('shimmers')) registerTimer(setInterval(clickShimmers, CONFIG.shimmerScanMs));
-    if (capability('purchases')) registerTimer(setInterval(purchaseCycle, CONFIG.purchaseScanMs));
-    if (capability('wrinklers')) registerTimer(setInterval(manageWrinklers, CONFIG.wrinklerScanMs));
-    if (capability('grimoire')) registerTimer(setInterval(castGrimoire, CONFIG.grimoireScanMs));
-    if (capability('garden')) registerTimer(setInterval(gardenCycle, CONFIG.gardenScanMs));
-    if (capability('market')) registerTimer(setInterval(manageMarket, CONFIG.marketScanMs));
-    if (capability('pantheon')) registerTimer(setInterval(managePantheon, CONFIG.pantheonScanMs));
-    if (capability('dragon')) registerTimer(setInterval(manageDragon, CONFIG.dragonScanMs));
-    if (capability('seasons')) registerTimer(setInterval(manageSeason, CONFIG.seasonScanMs));
-    if (capability('sugarLumps')) registerTimer(setInterval(manageSugarLump, CONFIG.sugarLumpScanMs));
-    if (capability('prestige')) registerTimer(setInterval(() => {
-      if (shouldAscend()) performAscension();
-    }, CONFIG.prestigeScanMs));
-    registerTimer(setInterval(() => {
-      if (state.active && !state.paused && !state.ascending) {
-        const desired = clickInterval();
-        const mode = desired === CONFIG.clickNormalMs ? 'normal' : 'buff';
-        if (mode !== state.lastClickMode) startClicker();
-      }
-    }, 1000));
-    if (CONFIG.periodicStatus) registerTimer(setInterval(showStatus, CONFIG.statusScanMs));
-    registerTimer(setInterval(periodicReport, CONFIG.reportIntervalMs));
     registerTimer(setInterval(saveState, 30000));
 
     window.addEventListener('keydown', handleKey);
