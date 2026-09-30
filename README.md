@@ -524,3 +524,21 @@ Em caso de falha:
 Isso deixa a V6 mais diagnosticável quando uma ascensão apresentar comportamento diferente do esperado no runtime.
 
 > Validação desta etapa: análise estrutural do código no GitHub. Não foi executada uma sessão real dentro do Cookie Clicker.
+
+
+## V6.15 — Scheduler/Watchdog resiliente
+
+A V6.15 fecha uma lacuna do módulo de execução: o Scheduler e o Watchdog agora entendem falha explícita de tarefa.
+
+### Melhorias
+
+- retorno `false` de uma tarefa agora é tratado como falha;
+- `taskHealth` passa a registrar `HEALTHY`, `DEGRADED` e `FAILED`;
+- o Health/Telemetry usa esse estado explícito antes de inferir saúde apenas pelos tempos;
+- o Watchdog respeita a máquina de estados da ascensão e não força automações normais durante transições;
+- tarefas permitidas durante transições continuam sendo `health`, `status` e `upgradeObservations`;
+- contadores de execução, falhas e duração continuam preservados.
+
+Isso reduz o risco de o sistema considerar uma tarefa saudável quando ela executou, mas informou explicitamente que não conseguiu completar sua operação.
+
+> Validação: código verificado estruturalmente no GitHub. Nenhuma sessão real do Cookie Clicker foi executada nesta etapa.
