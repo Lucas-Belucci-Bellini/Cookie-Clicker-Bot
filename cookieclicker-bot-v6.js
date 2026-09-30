@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.12.0';
+  const VERSION = '6.13.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -36,6 +36,8 @@
     ascensionRecoverySafetyFactor: 3,
     ascensionMaxPaybackSeconds: 43200,
     ascensionVerificationDelayMs: 1200,
+    upgradeObservationWindowMs: 5000,
+    upgradeObservationMaxEntries: 96,
 
     // Estourar wrinklers por padrão também fica desligado.
     popWrinklers: false,
@@ -109,6 +111,7 @@
     ascensionPhase: 'READY',
     ascensionSnapshot: null,
     upgradeObservations: [],
+    pendingUpgradeObservations: [],
     healthHistory: [],
     timeouts: new Set(),
     ascending: false,
@@ -210,7 +213,7 @@
   }
 
   function clickCookie() {
-    if (isPaused() || !gameReady()) return false;
+    if (isPaused() || state.ascensionPhase !== 'READY' || !gameReady()) return false;
     return safe(() => {
       Game.ClickCookie();
       state.stats.clicks++;
@@ -406,22 +409,78 @@
     }, false, 'decisão econômica falhou');
   }
 
+  function upgradeObservationKey() {
+    return '__COOKIE_CLICKER_BOT_V6_UPGRADE_OBSERVATIONS__';
+  }
+
+  function loadUpgradeObservations() {
+    if (typeof localStorage === 'undefined') return [];
+    return safe(() => {
+      const raw = localStorage.getItem(upgradeObservationKey());
+      const parsed = raw ? JSON.parse(raw) : [];
+      const max = Math.max(1, Math.floor(Number(CONFIG.upgradeObservationMaxEntries) || 96));
+      state.upgradeObservations = Array.isArray(parsed) ? parsed.slice(-max) : [];
+      return [...state.upgradeObservations];
+    }, [], 'observações de upgrades não puderam ser carregadas');
+  }
+
+  function saveUpgradeObservations() {
+    if (typeof localStorage === 'undefined') return false;
+    return safe(() => {
+      const max = Math.max(1, Math.floor(Number(CONFIG.upgradeObservationMaxEntries) || 96));
+      state.upgradeObservations = state.upgradeObservations.slice(-max);
+      localStorage.setItem(upgradeObservationKey(), JSON.stringify(state.upgradeObservations));
+      return true;
+    }, false, 'observações de upgrades não puderam ser salvas');
+  }
+
+  function finalizeUpgradeObservations() {
+    if (!state.pendingUpgradeObservations.length || !gameExists()) return 0;
+    const now = Date.now();
+    const ready = [];
+    const pending = [];
+
+    state.pendingUpgradeObservations.forEach(observation => {
+      if (now < observation.finalizeAt) {
+        pending.push(observation);
+        return;
+      }
+
+      const currentCps = cps();
+      ready.push({
+        ...observation,
+        kind: 'upgrade-observation',
+        afterCps: currentCps,
+        observedCpsDelta: Math.max(0, currentCps - Number(observation.baselineCps || 0)),
+        observedAt: new Date(now).toISOString(),
+        observationWindowMs: Math.max(0, now - Number(observation.createdAtMs || now))
+      });
+    });
+
+    state.pendingUpgradeObservations = pending;
+    if (!ready.length) return 0;
+
+    state.upgradeObservations.push(...ready);
+    const max = Math.max(1, Math.floor(Number(CONFIG.upgradeObservationMaxEntries) || 96));
+    if (state.upgradeObservations.length > max) state.upgradeObservations = state.upgradeObservations.slice(-max);
+    saveUpgradeObservations();
+    return ready.length;
+  }
+
   function recordUpgradeObservation(upgrade, analysis, before, after) {
     if (!upgrade) return false;
-    const observation = {
-      kind: 'upgrade-observation',
+    const now = Date.now();
+    state.pendingUpgradeObservations.push({
       id: upgrade.id,
       name: String(upgrade.name || upgrade.id || 'upgrade'),
       price: Number(analysis?.price || 0),
       expectedCpsGain: Number(analysis?.estimatedCpsGain || 0),
       expectedClickGain: Number(analysis?.estimatedClickGain || 0),
-      beforeCps: Number(before?.cps || 0),
-      afterCps: Number(after?.cps || 0),
-      observedCpsDelta: Math.max(0, Number(after?.cps || 0) - Number(before?.cps || 0)),
-      observedAt: new Date().toISOString()
-    };
-    state.upgradeObservations.push(observation);
-    if (state.upgradeObservations.length > 48) state.upgradeObservations = state.upgradeObservations.slice(-48);
+      baselineCps: Number(after?.cps ?? before?.cps ?? 0),
+      baselineCookies: Number(after?.cookies ?? before?.cookies ?? 0),
+      createdAtMs: now,
+      finalizeAt: now + Math.max(1000, Number(CONFIG.upgradeObservationWindowMs) || 5000)
+    });
     return true;
   }
 
@@ -1208,6 +1267,7 @@
   function operationalState() {
     if (!state.active) return 'IDLE';
     if (state.paused) return 'PAUSED';
+    if (state.ascensionPhase !== 'READY') return state.ascensionPhase;
     if (state.ascending) return 'ASCENDING';
     if (hasBuff('click frenzy') || hasBuff('elder frenzy')) return 'BUFF_ACTIVE';
     return 'RUNNING';
@@ -1253,9 +1313,11 @@
     if (!state.active || state.paused) return;
     state.stats.schedulerTicks = (state.stats.schedulerTicks || 0) + 1;
     const now = Date.now();
+    const transitionActive = state.ascensionPhase !== 'READY';
     [...state.schedulerTasks.values()]
       .sort((a, b) => b.priority - a.priority)
       .forEach(task => {
+        if (transitionActive && !['health', 'status', 'upgradeObservations'].includes(task.name)) return;
         const last = state.taskLastRun.get(task.name) || 0;
         if (now - last >= task.intervalMs) runScheduledTask(task, now);
       });
@@ -1312,6 +1374,7 @@
     registerTask('status', CONFIG.statusMs, 4, status);
     registerTask('report', CONFIG.reportMs, 5, report);
     registerTask('economicReport', CONFIG.reportMs, 5, economicReport);
+    registerTask('upgradeObservations', 1000, 7, finalizeUpgradeObservations);
     if (CONFIG.healthEnabled) registerTask('health', CONFIG.statusMs, 6, healthCycle);
     return state.schedulerTasks.size;
   }
@@ -1447,6 +1510,7 @@
     state.cookiesAtStart = cookies();
     state.lastError = null;
     loadHistory();
+    loadUpgradeObservations();
 
     configureTimers();
     log('info', 'Bot V6 iniciado.');
@@ -1492,6 +1556,10 @@
       economicReport,
       historyKey,
       loadHistory,
+      upgradeObservationKey,
+      loadUpgradeObservations,
+      saveUpgradeObservations,
+      finalizeUpgradeObservations,
       saveHistory,
       performanceHistory,
       clearHistory,
