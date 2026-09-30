@@ -25,6 +25,33 @@ CookieBotV6.config({
 })
 ```
 
+## V6.9 — Sugar Lumps
+
+A V6.9 reconstrói o módulo de **Sugar Lumps** com execução opcional e conservadora.
+
+O módulo:
+
+- verifica se a API de Sugar Lumps existe;
+- respeita `Game.canLumps()`;
+- verifica o tempo do lump antes de agir;
+- executa somente o modo `harvest`;
+- registra cada coleta;
+- não altera automaticamente prédios, minigames ou outros sistemas do jogo.
+
+Configuração:
+
+```js
+CookieBotV6.config({
+  sugarLumpsEnabled: true,
+  sugarLumpMinTime: 0,
+  sugarLumpMode: 'harvest'
+})
+```
+
+API adicionada: `sugarLumpReady()` e `manageSugarLump()`.
+
+O módulo permanece desligado por padrão para evitar comportamento inesperado antes da validação dentro do jogo.
+
 ## V6.8 — Dragon + Seasons
 
 A V6.8 reconstrói os módulos de **Dragon Aura** e **Seasons** e mantém ambos desligados por padrão.
