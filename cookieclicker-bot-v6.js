@@ -1112,6 +1112,8 @@
     if (CONFIG.gardenEnabled) addTimer('garden', CONFIG.purchaseMs, gardenCycle);
     if (CONFIG.marketEnabled) addTimer('market', CONFIG.purchaseMs, manageMarket);
     if (CONFIG.pantheonEnabled) addTimer('pantheon', CONFIG.purchaseMs, managePantheon);
+    if (CONFIG.dragonEnabled) addTimer('dragon', CONFIG.purchaseMs, manageDragon);
+    if (CONFIG.seasonsEnabled) addTimer('season', CONFIG.purchaseMs, manageSeason);
   }
 
   function stop() {
