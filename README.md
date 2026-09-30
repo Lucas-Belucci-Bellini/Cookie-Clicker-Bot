@@ -1,650 +1,116 @@
+# Cookie Clicker Bot
 
-============================================================================================ 
+Este repositório mantém as versões históricas do bot e evolui uma versão por vez, sem apagar V1–V5.9.
 
-🍪 Cookie Clicker Bot — Full Idle Automator A complete and lightweight Cookie Clicker bot designed to run directly in your browser console. Perfect for those who want to leave the game farming on its own while they study, work, or do any other productive activity in real life. ✨ Features
+## V6 — Stable Runtime Rewrite
 
-Smart Auto Clicker: clicks the main cookie at normal speed and automatically speeds up during Frenzy / Click Frenzy Auto Golden Cookie + Reindeer: automatically clicks all shimmers (including wrath cookies) Smart Purchases: prioritizes upgrades and then buys the most cost-effective build (lowest price per CpS) Auto Ascension: automatically ascends when reaching the configured amount of Heavenly Chips Automatic purchase of celestial upgrades after ascending Easy-to-adjust settings (speed, spending limit, prestige for ascending, etc.) Clear logs in the console Function to easily pause and resume the bot
+A V6 foi criada porque a V5 acumulou complexidade antes de ter validação suficiente no runtime real do Cookie Clicker.
 
-How to use
+### Objetivo
 
-Open Cookie Clicker (web version recommended) Press F12 → Console tab Paste all the code and press Enter The bot starts automatically
+**Runtime primeiro. Complexidade depois.**
 
-To stop: type stopBot() in the console To restart: type startBot() Main settings All settings are in the CONFIG object at the top of the script. You can change:
+A V6 separa o núcleo realmente necessário das integrações opcionais.
 
-Click speed Purchase frequency Amount of prestige to automatically ascend Spending limit per purchase Enable/disable logs
+### Núcleo V6
 
-Made with love by someone who needed to study while the game continued producing cookies.
-
-============================================================================================ 
-
-🍪 COOKIE CLICKER BOT — SUPREME EDITION v2.0
-The most complete and intelligent idle bot for Cookie Clicker. Runs directly in your browser console and turns your game into a fully automated cookie factory while you study, work, or live your real life.
-✨ All Features
-
-Ultra-Smart Auto Clicker
-Dynamically adjusts clicking speed:
-• Normal: 50 ms
-• Frenzy / Click Frenzy: 10 ms
-• Elder Frenzy: 20 ms
-Automatically detects buffs and switches speed in real time.
-Intelligent Night Mode (23:00–07:00)
-Pauses clicking during the night and automatically activates the Golden Switch to keep CpS high without wasting CPU. Returns to normal mode at sunrise.
-Auto Golden Cookie + Wrath Cookie + Reindeer
-Scans the screen every 250 ms and instantly clicks all shimmers (Golden, Wrath, and Reindeer). Fully configurable — you can disable Wrath Cookies if you don’t want debuffs.
-Smart Purchasing System
-Buys shop upgrades first (highest immediate impact)
-Then buys the most efficient building (lowest cost per CpS)
-Respects single-purchase spending limit (default 50% of current cookies) and minimum cookie reserve.
-
-Automatic Wrinkler Management
-Pops fat wrinklers while keeping the exact number you want to maintain (default: pops all).
-Grimoire (Wizard Tower) Automation
-Automatically casts your chosen spell when magic is full (FSM = Force the Hand of Fate or GF = Gambler's Fever Dream).
-Pantheon (Temple) Auto-Configuration
-Automatically assigns the best gods to each slot, switching between day and night setups.
-Garden (Farm) Manager
-Automatically plants Queenbeet (the most efficient seed) and harvests all mature plants.
-Stock Market Automation
-Buys stocks when cheap (below 75% of base price) and sells when they rise 50% or more.
-Season Auto-Switcher
-Activates the most beneficial season in priority order:
-Valentine’s → Christmas → Halloween → Business Day.
-Auto Ascend + Post-Ascend Management
-Ascends automatically when you reach the configured amount of Heavenly Chips.
-After ascending:
-• Buys all available Heavenly upgrades (with priority for permanent slots)
-• Reincarnates automatically
-• Restarts the bot seamlessly.
-Dragon Aura Manager (Krumblor)
-Automatically changes the dragon’s aura depending on the current game state (Radiant Appetite or Dragon Frenzy).
-Live Statistics & Status Panel
-Shows current cookies, CpS, runtime, Golden Cookies caught, purchases made, ascensions, wrinklers popped, and more.
-Clean & Detailed Logging
-Beautiful console logs with icons, timestamps, and configurable log level (debug/info/warn).
-
-How to Use
-
-Open Cookie Clicker (web version recommended)
-Press F12 → go to the Console tab
-Paste the entire cookieclicker-bot-v2.js script and press Enter
-The bot starts automatically
-
-Useful Commands:
-
-BOT.parar() → completely stop the bot
-BOT.pausar() → pause (great for manual play)
-BOT.retomar() → resume
-BOT.status() → show full status report
-BOT.iniciar() → restart from scratch
-
-Configuration
-All settings are in the CONFIG object at the top of the script. Easy to customize:
-
-Click speeds (normal/frenzy/elder)
-Spending limit per purchase
-Prestige threshold for auto-ascend
-Night mode hours
-Whether to click Wrath Cookies
-Number of wrinklers to keep
-Preferred Grimoire spell
-Favorite garden seed
-Stock market sell threshold
-Log level
-
-Perfect For
-Anyone who wants the game to run 24/7 while you’re busy with real life. The bot is lightweight, stable, and built with the philosophy: “Good work should be studied and improved.”
-Ready to conquer the cookie multiverse without lifting a finger?
-Just paste the script and relax — the bot handles everything. 🍪✨
-
-============================================================================================ 
-
-🍪 Cookie Clicker Bot — Full Idle Automator
-Um bot completo e leve para Cookie Clicker feito para rodar diretamente no console do navegador.
-Perfeito pra quem quer deixar o jogo farmando sozinho enquanto estuda, trabalha ou faz qualquer outra coisa produtiva da vida real.
-✨ Funcionalidades
-
-Auto Clicker inteligente: clica no biscoito principal com velocidade normal e acelera automaticamente durante Frenzy / Click Frenzy
-Auto Golden Cookie + Reindeer: clica automaticamente em todos os shimmers (incluindo wrath cookies)
-Compras inteligentes: prioriza upgrades e depois compra a construção com melhor custo-benefício (menor preço por CpS)
-Auto Ascensão: sobe automaticamente quando atingir a quantidade configurada de Heavenly Chips
-Compra automática de upgrades celestiais após ascender
-Configurações fáceis de ajustar (velocidade, limite de gasto, prestige para ascender, etc)
-Logs claros no console
-Função para pausar e retomar o bot facilmente
-
-Como usar
-
-Abra o Cookie Clicker (versão web recomendada)
-Pressione F12 → aba Console
-Cole todo o código e pressione Enter
-O bot inicia automaticamente
-
-Para parar: digite pararBot() no console
-Para reiniciar: digite iniciarBot()
-Configurações principais
-Todas as configurações ficam no objeto CONFIG no topo do script. Você pode alterar:
-
-Velocidade do clique
-Frequência de compras
-Quantidade de prestige para ascender automaticamente
-Limite de gasto por compra
-Ativar/desativar logs
-
-
-Feito com carinho por alguém que precisava estudar enquanto o jogo continuava produzindo cookies.
-
-============================================================================================ 
-
-🍪 COOKIE CLICKER BOT — EDIÇÃO SUPREMA v2.0
-O bot mais completo e inteligente já feito para Cookie Clicker. Roda direto no console do navegador e transforma seu jogo em uma máquina de produção automática de cookies enquanto você vive a vida real.
-✨ O que ele faz (todas as funções)
-
-Auto Clicker Ultra-Inteligente
-Clica no biscoito principal com velocidade adaptativa:
-• Normal: 50 ms
-• Frenzy / Click Frenzy: 10 ms
-• Elder Frenzy: 20 ms
-Detecta automaticamente os buffs e muda a velocidade em tempo real.
-Modo Noturno Inteligente (23h–7h)
-Pausa os cliques e ativa o Golden Switch automaticamente para manter o CpS alto sem gastar energia do PC. Ao amanhecer volta ao modo normal.
-Auto Golden Cookie + Wrath Cookie + Renas
-Varre a tela a cada 250 ms e clica em todos os shimmers (Golden, Wrath e Reindeer). Totalmente configurável (pode desativar Wrath se não quiser debuffs).
-Compras Inteligentes com Prioridade
-Compra upgrades da loja primeiro (maior impacto imediato)
-Depois compra o edifício com melhor eficiência (menor custo por CpS gerado)
-Respeita limite de gasto único (padrão 50% do saldo) e reserva mínima de cookies.
-
-Gerenciamento Automático de Wrinklers
-Estoura automaticamente os wrinklers gordos, mantendo apenas a quantidade que você quiser (padrão: estoura todos).
-Grimório (Wizard Tower)
-Conjura automaticamente a magia escolhida (FSM = Force the Hand of Fate ou GF = Gambler's Fever Dream) sempre que a magia estiver cheia.
-Panteon (Temple)
-Configura automaticamente os espíritos nos slots ideais, alternando entre configuração diurna e noturna.
-Jardim (Garden)
-Planta automaticamente Queenbeet (a semente mais eficiente) e colhe todas as plantas maduras.
-Mercado de Ações (Stock Market)
-Compra ações quando estão baratas (abaixo de 75% do preço base) e vende quando sobem 50% ou mais. Totalmente automático.
-Temporadas Automáticas
-Ativa a temporada mais vantajosa na ordem de prioridade:
-Valentim → Natal → Halloween → Business Day.
-Auto Ascensão + Pós-Ascensão
-Ascende automaticamente quando atingir o número configurado de Heavenly Chips.
-Depois da ascensão:
-• Compra todos os upgrades celestiais (com prioridade para os permanentes)
-• Reencarna automaticamente
-• Reinicia o bot sem intervenção.
-Dragão (Krumblor)
-Troca automaticamente a aura do dragão conforme o momento (Radiant Appetite ou Dragon Frenzy).
-Estatísticas e Status em Tempo Real
-Mostra no console: cookies atuais, CpS, tempo rodando, quantos Golden Cookies foram pegos, quantas compras, ascensões, wrinklers estourados, etc.
-Logs Detalhados e Fáceis de Ler
-Com ícones e horários. Nível de log configurável (debug/info/warn).
-
-Como usar (super simples)
-
-Abra o Cookie Clicker (web ou Steam)
-Pressione F12 → aba Console
-Cole todo o código da v2 e pressione Enter
-O bot inicia automaticamente
-
-Comandos úteis:
-
-BOT.parar() → para completamente
-BOT.pausar() → pausa (útil para jogar manualmente)
-BOT.retomar() → volta a rodar
-BOT.status() → mostra relatório completo
-BOT.iniciar() → reinicia do zero
-
-Configurações (todas no topo do script)
-Todas as opções ficam no objeto CONFIG. Você pode mudar facilmente:
-
-Velocidades de clique (normal/frenzy/elder)
-Limite de gasto por compra
-Quantidade de prestige para ascender
-Modo noturno (horários)
-Se quer clicar em Wrath Cookies ou não
-Quantos wrinklers manter
-Magia do grimório preferida
-Semente favorita do jardim
-Limiar de venda no mercado
-Nível de log
-
-Perfeito para quem...
-...quer deixar o jogo rodando sozinho enquanto estuda, trabalha, dorme ou faz qualquer coisa produtiva. O bot é leve, estável e foi feito com a filosofia “trabalho bom deve ser estudado e aprimorado”.
-Pronto para dominar o multiverso dos cookies sem esforço?
-Cole o script e relaxa. O bot cuida do resto. 🍪✨
-
-============================================================================================ 
-
-
-# 🛠️ Manutenção das versões existentes
-
-As versões V1, V2, V3 e V4 são mantidas separadamente e continuam sendo scripts independentes para uso direto no console.
-
-## Melhorias aplicadas
-
-- **V1:** corrigido o cálculo de prestígio disponível e adicionada proteção contra duplicação do ciclo de inicialização.
-- **V2:** endurecido o cálculo de prestígio e melhorada a identificação de wrinklers ativos.
-- **V3:** corrigido o cálculo de prestígio e usado o preço atual do edifício quando disponível para a decisão de compra.
-- **V4:** fortalecido o cálculo de ROI dos edifícios, melhorado o controle do timer pós-ascensão e adicionado diagnóstico para falhas de clique.
-
-## Política de evolução
-
-As versões existentes são aprimoradas incrementalmente na **main**. A evolução preserva a identidade de cada bot em vez de substituir V1–V4 por uma única implementação.
-
-### Histórico recente
-
-- `fix(v1): corrigir cálculo de prestígio e reinicialização segura`
-- `fix(v2): endurecer cálculo de prestígio e detecção de wrinklers`
-- `fix(v3): endurecer prestígio e preço marginal de edifícios`
-- `fix(v4): fortalecer timer pós-ascensão e cálculo de ROI`
-
-
-## V5 — Ultimate
-
-A V5 foi criada como uma evolução modular das versões anteriores, sem apagar V1–V4.
-
-### Correções incorporadas
-
-- cálculo de prestígio protegido contra valores inválidos;
-- detecção de wrinklers baseada em estado ativo e cookies sugados;
-- preço atual de edifícios usando `getPrice()` quando disponível;
-- ROI de edifícios com validação de CpS;
+- auto-click do cookie principal;
+- coleta de Golden Cookies, Wrath Cookies e Reindeer;
+- compra automática de upgrades;
+- compra automática de edifícios por ROI de CpS;
+- gerenciamento opcional de wrinklers;
+- cálculo de prestígio;
+- ascensão automática opcional;
+- scheduler simples e previsível;
+- parada, pausa e retomada;
+- diagnóstico do ambiente;
+- status e relatórios;
 - proteção contra múltiplas instâncias;
-- timers centralizados e limpeza segura;
-- estado explícito de pausa/ascensão;
-- tratamento seguro de erros em operações de jogo;
-- persistência básica de estatísticas no `localStorage`;
-- parada de emergência;
-- diagnóstico do ambiente antes de depender de minigames.
+- tratamento individual de erros;
+- detecção de APIs antes de usar recursos opcionais.
 
-### 50+ funções do V5
+### Segurança operacional
 
-1. verificação do jogo
-2. logging por nível
-3. wrapper seguro de operações
-4. formatação de números
-5. registro de timers
-6. limpeza de timers
-7. modo noturno
-8. estado de pausa
-9. detecção de buffs
-10. seleção de velocidade
-11. início do auto-clicker
-12. parada do auto-clicker
-13. filtro de shimmers
-14. coleta de shimmers
-15. preço marginal de edifício
-16. CpS marginal
-17. limite de gasto
-18. compra de melhor edifício
-19. compra de upgrades
-20. ciclo de compras
-21. cálculo de prestígio
-22. decisão de ascensão
-23. compra de upgrades celestiais
-24. fluxo de ascensão/reencarnação
-25. contagem de wrinklers
-26. gerenciamento de wrinklers
-27. grimório
-28. colheita do jardim
-29. plantio do jardim
-30. ciclo do jardim
-31. mercado de ações
-32. panteão
-33. aura do dragão
-34. temporadas
-35. sugar lumps
-36. cookies por hora
-37. snapshot da sessão
-38. painel de status
-39. reset de estatísticas
-40. salvamento de estado
-41. carregamento de estado
-42. atalhos de teclado
-43. inicialização
-44. parada
-45. pausa
-46. retomada
-47. parada de emergência
-48. diagnóstico
-49. atualização de configuração
-50. API pública
-51. proteção contra instâncias duplicadas
-
-### Comandos V5
+A V6 **não ativa ascensão automática nem estouro de wrinklers por padrão**. Essas ações podem alterar significativamente o progresso do jogo e devem ser habilitadas explicitamente:
 
 ```js
-CookieBotV5.status()
-CookieBotV5.diagnostics()
-CookieBotV5.pause()
-CookieBotV5.resume()
-CookieBotV5.stop()
-CookieBotV5.emergencyStop()
-CookieBotV5.config({ spendingLimit: 0.25 })
+CookieBotV6.config({
+  autoAscend: true,
+  popWrinklers: true
+})
 ```
 
-A V5 é deliberadamente independente: V1, V2, V3 e V4 continuam disponíveis para comparação, testes e evolução incremental.
+### Uso
 
+Abra o Cookie Clicker, F12 → Console e cole o conteúdo completo de:
 
-## V5.1 — Hardening
-
-A V5 recebeu uma rodada adicional de endurecimento sem remover a V5.0:
-
-- timers de pós-ascensão agora ficam registrados e podem ser cancelados por `stop()` e `emergencyStop()`;
-- diagnóstico não depende de acessar `Game` quando o jogo ainda não existe;
-- o fluxo de ascensão/reencarnação usa o mesmo sistema central de timers;
-- versão interna atualizada para `5.1.0`.
-
-> Observação: a V5.1 foi revisada estaticamente. O repositório ainda não possui um teste automatizado que execute o bot dentro do runtime real do Cookie Clicker, então compatibilidade dos minigames deve ser validada no jogo antes de tratar todos os módulos como garantidos.
-
-
-## V5.2 — Compatibilidade de minigames
-
-A V5 recebeu mais uma camada de compatibilidade:
-
-- resolução de spells do Grimório por nome, inclusive quando a chave interna do jogo muda;
-- Garden adaptado para APIs com `getTile(x,y)` e para a estrutura alternativa de `plot`;
-- Stock Market aceita `goodsById` ou `goods`;
-- Pantheon tenta as duas assinaturas conhecidas de `slotGod`;
-- auras do Dragão são procuradas pelo nome em `Game.dragonAuras`, evitando IDs fixos;
-- temporadas usam uma lista configurável de prioridade em vez de assumir apenas Christmas.
-
-A versão atual do arquivo é **V5.2.0**. Essas adaptações reduzem dependências rígidas da implementação interna, mas ainda exigem validação no runtime real do Cookie Clicker.
-
-
-## V5.3 — Matriz de compatibilidade e diagnóstico modular
-
-A V5.3 adiciona uma camada explícita de detecção de capacidades antes de ativar os ciclos de automação.
-
-### O que mudou
-
-- cada módulo principal passa por uma verificação de capacidade antes de criar seu timer;
-- o diagnóstico agora informa **suportado/indisponível** e o motivo detectado;
-- a API pública ganhou `CookieBotV5.capabilities()` e `CookieBotV5.capability('nome')`;
-- os módulos de Garden, Market, Pantheon, Dragon, Seasons e Grimoire continuam usando os adaptadores introduzidos na V5.2;
-- a inicialização deixa de criar timers de módulos que não estão disponíveis no runtime atual;
-- o diagnóstico também mostra cookies, CpS, prestígio, quantidade de edifícios/upgrades/wrinklers e nível do dragão.
-
-### Exemplo
-
-```js
-CookieBotV5.diagnostics()
-CookieBotV5.capabilities()
-CookieBotV5.capability('garden')
+```text
+cookieclicker-bot-v6.js
 ```
 
-O objetivo desta camada é fazer a V5 degradar de forma mais segura quando uma API interna do Cookie Clicker estiver ausente ou diferente, em vez de assumir que todos os minigames existem.
-
-> A V5.3 continua sendo uma revisão estática do código. A matriz de compatibilidade precisa ser conferida no runtime real do Cookie Clicker para validar o comportamento de cada API.
-
-
-## V5.4 — Motor econômico e relatório periódico
-
-A V5.4 adiciona um **motor de decisão econômica** que deixa de tratar compras como uma simples fila de upgrades + edifícios.
-
-### Motor econômico
-
-- calcula reserva dinâmica de cookies por percentual e reserva absoluta;
-- estima o payback de edifícios usando preço atual e CpS marginal;
-- compara upgrades e edifícios candidatos antes de gastar;
-- considera capacidade de pagamento e custo de oportunidade;
-- aumenta a agressividade durante buffs como Frenzy/Click Frenzy/Elder Frenzy;
-- registra quantas decisões foram tomadas pelo motor econômico;
-- pode ser desligado com `CookieBotV5.config({ economyEnabled: false })`.
-
-Configurações novas:
-
-- `economyEnabled`
-- `reserveCookiesRatio`
-- `purchaseScoreThreshold`
-- `targetPaybackSeconds`
-- `buffAggressionMultiplier`
-- `upgradeValueWeight`
-- `buildingValueWeight`
-- `reportIntervalMs` — padrão: **1.800.000 ms (30 minutos)**.
-
-### Relatório no console a cada 30 minutos
-
-Enquanto a V5 estiver ativa, o bot publica automaticamente um relatório agrupado no console do navegador com:
-
-- cookies atuais e CpS;
-- quantidade de compras;
-- decisões econômicas;
-- ascensões;
-- prestígio disponível;
-- erros acumulados;
-- última ação executada;
-- recomendação econômica atual e respectivo score.
-
-Também é possível gerar manualmente:
-
-```js
-CookieBotV5.periodicReport()
-CookieBotV5.economicReport()
-```
-
-O intervalo pode ser alterado, por exemplo:
-
-```js
-CookieBotV5.config({ reportIntervalMs: 600000 }) // 10 minutos
-```
-
-> A V5.4 continua sendo uma implementação para o runtime real do Cookie Clicker e precisa de validação dentro do jogo. O relatório periódico e o motor econômico foram adicionados estaticamente ao código; não foram considerados testes de runtime até serem executados no Cookie Clicker.
-
-## V5.5 — Economia normalizada e histórico
-
-A V5.5 corrige um problema importante da V5.4: upgrades e edifícios agora são avaliados em uma escala econômica comparável, removendo o multiplicador artificial de `1e6` que favorecia upgrades de forma desproporcional.
-
-### Motor econômico
-
-- orçamento econômico real baseado em `spendingLimit` + reserva mínima;
-- reserva dinâmica por percentual e valor absoluto;
-- score normalizado usando valor estimado, custo, payback e acessibilidade;
-- buffs podem aumentar a agressividade durante períodos favoráveis;
-- `economicNoops` registra ciclos em que nenhuma compra foi considerada adequada.
-
-### Histórico de desempenho
-
-Os relatórios periódicos agora são persistidos no `localStorage`, com limite configurável por `historyMaxEntries`.
+Se o jogo já estiver carregado, o bot inicia sozinho.
 
 Comandos:
 
 ```js
-CookieBotV5.performanceHistory()
-CookieBotV5.clearHistory()
-CookieBotV5.economicReport()
+CookieBotV6.status()
+CookieBotV6.diagnostics()
+CookieBotV6.pause()
+CookieBotV6.resume()
+CookieBotV6.stop()
+CookieBotV6.start()
+CookieBotV6.report()
 ```
 
-Cada entrada registra cookies, CpS, CpH, compras, decisões econômicas, ascensões, erros, última ação e variações de cookies/CpS em relação ao relatório anterior.
+### Diagnóstico
 
-> A V5.5 foi verificada estaticamente no código do repositório. O bot ainda precisa ser executado dentro do Cookie Clicker para validar as APIs reais dos minigames e o comportamento em runtime.
-
-
-## V5.6 — Scheduler, estados operacionais e watchdog
-
-A V5.6 reorganiza a execução interna da V5 para reduzir a dependência de vários `setInterval()` independentes.
-
-### Scheduler central
-
-As tarefas automáticas são registradas em um scheduler único, com:
-
-- intervalo individual por tarefa;
-- prioridade;
-- controle central de execução;
-- contador de ticks;
-- registro de falhas por tarefa;
-- migração das rotinas de shimmers, compras, wrinklers, Grimoire, jardim, mercado, Pantheon, dragão, temporadas, sugar lumps, prestígio, status e relatórios.
-
-### Estados operacionais
-
-`CookieBotV5.operationalState()` informa um estado simples:
-
-- `IDLE`
-- `PAUSED`
-- `RUNNING`
-- `BUFF_ACTIVE`
-- `ASCENDING`
-
-### Watchdog
-
-Um watchdog monitora as tarefas do scheduler. Quando uma tarefa fica atrasada além da tolerância configurada, ele tenta executar a tarefa imediatamente e registra a recuperação.
-
-Configurações:
+Se o bot não fizer nada:
 
 ```js
-schedulerIntervalMs
-watchdogIntervalMs
-watchdogGraceMs
+CookieBotV6.diagnostics()
 ```
 
-Comandos úteis:
+O diagnóstico mostra se o objeto `Game` existe, se o runtime está pronto, quais APIs principais estão disponíveis e quantos edifícios, upgrades, shimmers e wrinklers foram detectados.
+
+### Configuração
+
+Exemplos:
 
 ```js
-CookieBotV5.operationalState()
-CookieBotV5.configureScheduler()
-CookieBotV5.startScheduler()
-CookieBotV5.stopScheduler()
+CookieBotV6.config({ spendingLimit: 0.50 })
+CookieBotV6.config({ clickGolden: false })
+CookieBotV6.config({ clickWrath: false })
+CookieBotV6.config({ buyBuildings: false })
+CookieBotV6.config({ buyUpgrades: false })
+CookieBotV6.config({ autoAscend: true, prestigeThreshold: 100 })
 ```
 
-> A V5.6 foi verificada estaticamente. O comportamento do scheduler, watchdog e APIs dos minigames ainda precisa de execução dentro do Cookie Clicker real para validação de runtime.
+### Por que a V6 é diferente da V5?
 
+A V5 tentou concentrar scheduler, watchdog, economia, histórico, health checks e vários adaptadores de minigames em uma única execução.
 
-## V5.7 — SelfTest, Dashboard e Telemetria
+A V6 começa novamente pelo caminho crítico:
 
-A V5.7 adiciona uma camada de observabilidade sem substituir a V5.6. O arquivo
-`cookieclicker-bot-v5.7.js` deve ser carregado **depois** da V5.6.
-
-### SelfTest
-
-Executa uma verificação rápida do ambiente e classifica os módulos como:
-
-- `SUPPORTED`
-- `UNAVAILABLE`
-- `DEGRADED`
-- `ERROR`
-
-Comando:
-
-```js
-CookieBotV57.selfTest()
+```
+Game disponível
+   ↓
+Cookie principal
+   ↓
+Shimmers
+   ↓
+Compras
+   ↓
+Wrinklers / Prestígio
+   ↓
+Diagnóstico
+   ↓
+Integrações opcionais
 ```
 
-### Dashboard
-
-Mostra em grupos do console:
-
-- estado operacional;
-- cookies, CpS e prestígio;
-- saúde geral;
-- situação de cada módulo;
-- quantidade de entradas no histórico;
-- contadores da própria camada V5.7.
-
-Comando:
-
-```js
-CookieBotV57.dashboard()
-```
-
-### Telemetria
-
-Produz um snapshot estruturado para inspeção e futuras integrações:
-
-```js
-CookieBotV57.telemetry()
-```
-
-### Relatório periódico
-
-A camada também pode gerar relatórios em intervalo configurável:
-
-```js
-CookieBotV57.report()
-CookieBotV57.watch()            // padrão: 30 minutos
-CookieBotV57.watch(600000)      // 10 minutos
-CookieBotV57.stopWatch()
-```
-
-### Importante
-
-A V5.7 é uma **camada complementar**: V5.6 continua sendo o motor de automação,
-enquanto V5.7 observa, diagnostica e apresenta o estado. Isso mantém a evolução
-incremental e permite comparar as versões sem apagar as anteriores.
-
-A revisão desta versão foi feita estaticamente no repositório. A validação final
-das APIs do Cookie Clicker continua dependendo da execução no runtime real.
-
-
-## V5.8 — Health Checks reais e ciclo de vida do Scheduler
-
-A V5.8 evolui a observabilidade da V5.7 para saúde operacional do Scheduler.
-
-### Saúde por tarefa
-
-Cada tarefa agora registra:
-
-- execuções;
-- falhas consecutivas;
-- última execução;
-- último sucesso;
-- duração da última execução;
-- duração média;
-- idade do último sucesso;
-- prioridade e intervalo.
-
-Comandos:
-
-```js
-CookieBotV5.schedulerHealth()
-CookieBotV5.healthSummary()
-```
-
-Os estados principais são `WAITING`, `HEALTHY`, `RECOVERED`,
-`DEGRADED`, `STALE` e `ERROR`.
-
-### Ciclo de vida corrigido
-
-`stop()` e `emergencyStop()` agora também encerram explicitamente o
-Scheduler e o Watchdog. Alterações de configuração durante a execução
-reconfiguram os ciclos do Scheduler.
-
-Isso reduz o risco de uma instância aparentemente parada continuar executando
-tarefas em segundo plano.
+Se uma integração opcional não existir, o núcleo continua funcionando.
 
 ### Validação
 
-A revisão desta versão foi feita estaticamente no repositório. A execução final
-das APIs depende do runtime real do Cookie Clicker.
+A V6 foi revisada estruturalmente e construída para depender apenas de APIs centrais conhecidas do runtime do Cookie Clicker. Ela ainda precisa ser executada dentro do Cookie Clicker para uma validação real de comportamento; uma revisão de código não substitui esse teste.
 
-
-## V5.9 — Histórico e tendência de saúde
-
-A V5.9 transforma os health checks da V5.8 em telemetria histórica.
-
-### Novos recursos
-
-- snapshots periódicos de saúde;
-- limite configurável de histórico;
-- tendência `STABLE`, `IMPROVING` ou `DEGRADING`;
-- contagem de amostras degradadas e com erro;
-- relatório consolidado no console;
-- monitor automático de saúde.
-
-Comandos:
-
-```js
-CookieBotV5.healthSnapshot()
-CookieBotV5.healthHistory()
-CookieBotV5.healthTrend()
-CookieBotV5.healthReport()
-CookieBotV5.startHealthMonitor()
-CookieBotV5.stopHealthMonitor()
-```
-
-O monitor coleta um snapshot a cada 60 segundos por padrão, com
-`healthSnapshotIntervalMs` configurável.
-
-A V5.9 continua compatível com a arquitetura anterior e não altera os arquivos
-das versões V1–V5.7. A validação desta evolução é estrutural; o runtime final
-deve ser conferido dentro do Cookie Clicker.
+As versões V1–V5.9 permanecem no repositório para comparação e preservação histórica.
