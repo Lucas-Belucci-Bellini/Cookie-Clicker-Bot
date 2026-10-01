@@ -7,8 +7,11 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.21.0';
+  const VERSION = '6.22.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
+  const CONTROL_KEY = '__COOKIE_CLICKER_BOT_CONTROL__';
+  const CONTROL = window[CONTROL_KEY] || { broken: false, updatedAt: 0, version: null };
+  window[CONTROL_KEY] = CONTROL;
 
   const CONFIG = {
     clickMs: 25,
@@ -103,6 +106,7 @@
   const state = {
     active: false,
     paused: false,
+    hardStopped: false,
     startedAt: 0,
     cookiesAtStart: 0,
     lastAction: 'nenhuma',
@@ -978,8 +982,10 @@
   }
 
   function registerTimeout(name, delay, fn) {
+    if (state.hardStopped) return null;
     const id = setTimeout(() => {
       state.timeouts.delete(id);
+      if (state.hardStopped) return;
       safe(fn, null, name + ' falhou');
     }, Math.max(0, Number(delay) || 0));
     state.timeouts.add(id);
@@ -1054,6 +1060,7 @@
   }
 
   function performAscension() {
+    if (state.hardStopped) return false;
     const analysis = ascensionAnalysis();
     if (!gameReady() || state.ascending || !CONFIG.autoAscend || !analysis.worthIt) return false;
     if (typeof Game.Ascend !== 'function') return false;
@@ -1366,7 +1373,7 @@
   }
 
   function runTask(name, fn) {
-    if (!state.active || state.paused) return;
+    if (state.hardStopped || !state.active || state.paused) return;
     state.stats.ticks++;
     safe(fn, null, 'tarefa ' + name + ' falhou');
   }
@@ -1494,7 +1501,7 @@
   }
 
   function schedulerTick() {
-    if (!state.active || state.paused) return;
+    if (state.hardStopped || !state.active || state.paused) return;
     state.stats.schedulerTicks = (state.stats.schedulerTicks || 0) + 1;
     const now = Date.now();
     const transitionActive = state.ascensionPhase !== 'READY';
@@ -1508,7 +1515,7 @@
   }
 
   function watchdogTick() {
-    if (!state.active || state.paused) return;
+    if (state.hardStopped || !state.active || state.paused) return;
     const transitionActive = state.ascensionPhase !== 'READY';
     const now = Date.now();
     const grace = Math.max(5000, Number(CONFIG.watchdogGraceMs) || 15000);
@@ -1537,6 +1544,7 @@
   }
 
   function startScheduler() {
+    if (state.hardStopped) return false;
     stopScheduler();
     state.schedulerTimer = setInterval(schedulerTick, Math.max(100, Number(CONFIG.schedulerIntervalMs) || 1000));
     state.watchdogTimer = setInterval(watchdogTick, Math.max(5000, Number(CONFIG.watchdogIntervalMs) || 10000));
@@ -1582,6 +1590,7 @@
   }
 
   function addTimer(name, interval, fn) {
+    if (state.hardStopped) return;
     removeTimer(name);
     const id = setInterval(() => runTask(name, fn), Math.max(50, Number(interval) || 1000));
     state.timers.set(name, id);
@@ -1688,6 +1697,40 @@
     return true;
   }
 
+  function Bot_Start() {
+    CONTROL.broken = false;
+    CONTROL.updatedAt = Date.now();
+    CONTROL.version = VERSION;
+    state.hardStopped = false;
+    const started = start();
+    log('info', started ? 'Bot_Start: bot iniciado.' : 'Bot_Start: jogo ainda não está pronto.');
+    return started;
+  }
+
+  function Bot_Stop() {
+    const stopped = stop();
+    CONTROL.broken = false;
+    CONTROL.updatedAt = Date.now();
+    CONTROL.version = VERSION;
+    log('info', 'Bot_Stop: execução normal encerrada.');
+    return stopped;
+  }
+
+  function Bot_Stop_And_Break() {
+    CONTROL.broken = true;
+    CONTROL.updatedAt = Date.now();
+    CONTROL.version = VERSION;
+
+    state.hardStopped = true;
+    clearAllTimers();
+    state.active = false;
+    state.paused = true;
+    state.ascending = false;
+    state.ascensionPhase = state.ascensionPhase === 'ASCENDING' ? 'FAILED' : state.ascensionPhase;
+    log('warn', 'Bot_Stop_And_Break: V6 completamente interrompida. Nenhum auto-start será feito até Bot_Start.');
+    return true;
+  }
+
   function pause() {
     if (!state.active) return false;
     state.paused = true;
@@ -1703,6 +1746,7 @@
   }
 
   function start() {
+    if (state.hardStopped) return false;
     if (state.active) return true;
     if (!waitForGame()) return false;
 
@@ -1731,6 +1775,9 @@
     return {
       version: VERSION,
       start,
+      Bot_Start,
+      Bot_Stop,
+      Bot_Stop_And_Break,
       stop,
       pause,
       resume,
@@ -1814,10 +1861,22 @@
 
   window[KEY] = api();
   window.CookieBotV6 = window[KEY];
+  window.Bot_Start = Bot_Start;
+  window.Bot_Stop = Bot_Stop;
+  window.Bot_Stop_And_Break = Bot_Stop_And_Break;
+  CONTROL.version = VERSION;
+  CONTROL.updatedAt = Date.now();
 
   console.log('%c🍪 Cookie Clicker Bot V' + VERSION + ' carregado', 'font-weight:bold;font-size:14px');
-  console.log('Se o jogo já estiver pronto, o V6 inicia sozinho. Se não estiver, execute CookieBotV6.start() após carregar.');
+  console.log('Controles globais: Bot_Start(), Bot_Stop(), Bot_Stop_And_Break().');
   console.log('Diagnóstico: CookieBotV6.diagnostics()');
 
-  CookieBotV6.start();
+  if (CONTROL.broken) {
+    state.hardStopped = true;
+    state.active = false;
+    state.paused = true;
+    console.warn('[CookieBot V' + VERSION + '] Break global ativo. Use Bot_Start() para liberar esta versão.');
+  } else {
+    CookieBotV6.start();
+  }
 })();
