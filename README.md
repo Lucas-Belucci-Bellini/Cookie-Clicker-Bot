@@ -642,3 +642,29 @@ A recuperação:
 A função fica disponível pela API como `CookieBotV6.recoverAscensionFailure()`.
 
 > Validação: estrutura do código verificada no GitHub. Não houve execução dentro de uma sessão real do Cookie Clicker.
+
+
+## V6.21 — Compra de upgrades restaurada
+
+A V6.21 corrige o fluxo que podia deixar upgrades disponíveis sem compra.
+
+O problema era que o motor econômico descartava qualquer upgrade cujo `worthIt` fosse falso. Como esse cálculo é heurístico, um upgrade que estava efetivamente disponível podia acabar sem candidato válido.
+
+Agora:
+
+- `upgradeAnalysis()` continua sendo usado para priorizar upgrades;
+- `economicScoreUpgrade()` possui fallback configurável com `upgradeFallbackEnabled: true`;
+- upgrades realmente compráveis podem ser selecionados mesmo quando a heurística de payback não consegue classificá-los como `worthIt`;
+- `getUpgradePrice()` aceita `getPrice()`, `basePrice` ou `price`;
+- `upgradeCanBuyNow()` usa `canBuy()` quando a API do jogo fornece essa função;
+- `chooseEconomicAction()` dá preferência a upgrades economicamente válidos e, na ausência deles, tenta um upgrade realmente comprável antes de recorrer a edifícios;
+- `buyBestUpgrade()` usa o mesmo caminho, evitando duas regras diferentes para comprar upgrades;
+- a execução verifica novamente a possibilidade de compra antes de chamar `buy()`.
+
+Nova configuração:
+
+`upgradeFallbackEnabled: true`
+
+A análise estatística continua influenciando a escolha; ela deixa de ser um bloqueio absoluto para a compra.
+
+> Validação: estrutura do código e presença do novo fluxo verificadas no GitHub. Não houve execução dentro de uma sessão real do Cookie Clicker.
