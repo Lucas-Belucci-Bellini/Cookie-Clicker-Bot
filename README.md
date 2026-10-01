@@ -829,3 +829,65 @@ Bot_Spawn_Golden_Cookies(10, 2)
 Assim, a V6 aceita tanto uma sintaxe curta de console quanto a API explícita.
 
 > Validação: setter global, chamada funcional e estrutura do código verificados na V6.25. Não houve execução dentro de uma sessão real do Cookie Clicker.
+
+
+## V6.26 — Controlador global de execução
+
+A V6.26 refatora os controles de ciclo de vida para não depender apenas das funções internas da versão atualmente carregada.
+
+O controlador persistente fica em `window.__COOKIE_CLICKER_BOT_CONTROL__` e guarda:
+
+- estado global de `break`;
+- versão registrada;
+- chave da instância V6 atual;
+- modo atual do controlador;
+- timestamp da última atualização.
+
+### Comandos recomendados
+
+```js
+Bot_Start()
+Bot_Stop()
+Bot_Stop_And_Break()
+Bot_Status()
+Bot_Help()
+```
+
+### API alternativa
+
+Também existe o objeto persistente:
+
+```js
+Bot.Start()
+Bot.Stop()
+Bot.Break()
+Bot.Status()
+Bot.Help()
+```
+
+`Bot_Status()` ou `Bot.Status()` mostra o controlador e a instância atual, facilitando verificar por que o bot não está iniciando ou parando.
+
+Estados principais do controlador:
+
+`RUNNING` → execução ativa
+
+`STOPPED` → execução parada normalmente
+
+`WAITING_GAME` → comando recebido, mas o Cookie Clicker ainda não está pronto
+
+`BREAK` → execução bloqueada até `Bot_Start()`
+
+A troca de versão recomendada permanece:
+
+```text
+Bot_Stop_And_Break()
+
+// carregar a nova V6
+
+Bot_Start()
+Bot_Status()
+```
+
+O carregamento de uma nova V6 consulta o mesmo controlador persistente antes do auto-start.
+
+> Validação: V6.26 verificada estruturalmente no GitHub. Os controles globais, controlador persistente, estados e API `Bot.*` foram confirmados no código. Não houve execução dentro de uma sessão real do Cookie Clicker.
