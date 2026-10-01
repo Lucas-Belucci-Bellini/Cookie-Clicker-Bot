@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.23.0';
+  const VERSION = '6.24.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
   const CONTROL_KEY = '__COOKIE_CLICKER_BOT_CONTROL__';
   const CONTROL = window[CONTROL_KEY] || { broken: false, updatedAt: 0, version: null };
@@ -93,6 +93,8 @@
     sugarLumpsEnabled: false,
     sugarLumpMinTime: 0,
     sugarLumpMode: 'harvest',
+    goldenSpawnDefaultAmount: 10,
+    goldenSpawnDefaultIntervalSeconds: 5,
     schedulerIntervalMs: 1000,
     watchdogIntervalMs: 10000,
     watchdogGraceMs: 15000,
@@ -128,6 +130,8 @@
     ascensionOutcome: null,
     upgradeObservations: [],
     pendingUpgradeObservations: [],
+    goldenSpawnTimer: null,
+    goldenSpawnRemaining: 0,
     healthHistory: [],
     timeouts: new Set(),
     ascending: false,
@@ -1743,6 +1747,9 @@
 
   /** clearAllTimers: Cancela timers, Scheduler e timeouts controlados. */
   function clearAllTimers() {
+    if (state.goldenSpawnTimer) clearInterval(state.goldenSpawnTimer);
+    state.goldenSpawnTimer = null;
+    state.goldenSpawnRemaining = 0;
     state.timers.forEach(id => clearInterval(id));
     state.timers.clear();
     stopScheduler();
@@ -1833,6 +1840,62 @@
   // MÓDULO 14 — CICLO DE VIDA / TIMERS / API
   // Inicialização, parada, break global, help e superfície pública.
   // ============================================================
+  /** bot_spawn_golden_cookies: Spawna uma quantidade controlada de Golden Cookies usando a API do jogo. */
+  function bot_spawn_golden_cookies(amount, intervalSeconds) {
+    if (state.hardStopped || !gameReady()) return false;
+    if (typeof Game.shimmer !== 'function') {
+      log('warn', 'Golden Cookie spawn indisponível: Game.shimmer não existe.');
+      return false;
+    }
+
+    const total = Math.max(1, Math.floor(Number(amount) || CONFIG.goldenSpawnDefaultAmount || 10));
+    const interval = Math.max(0, Number(intervalSeconds) || CONFIG.goldenSpawnDefaultIntervalSeconds || 5);
+
+    if (state.goldenSpawnTimer) {
+      clearInterval(state.goldenSpawnTimer);
+      state.goldenSpawnTimer = null;
+    }
+
+    let spawned = 0;
+    state.goldenSpawnRemaining = total;
+
+    const spawnOne = () => {
+      if (state.hardStopped || !state.active) {
+        if (state.goldenSpawnTimer) clearInterval(state.goldenSpawnTimer);
+        state.goldenSpawnTimer = null;
+        state.goldenSpawnRemaining = 0;
+        return;
+      }
+
+      safe(() => {
+        new Game.shimmer('golden');
+        spawned++;
+        state.goldenSpawnRemaining = Math.max(0, total - spawned);
+        state.lastAction = 'golden-cookie:spawn';
+        log('info', 'Golden Cookie spawnado ' + spawned + '/' + total + '.');
+
+        if (spawned >= total && state.goldenSpawnTimer) {
+          clearInterval(state.goldenSpawnTimer);
+          state.goldenSpawnTimer = null;
+          state.goldenSpawnRemaining = 0;
+        }
+        return true;
+      }, false, 'spawn de Golden Cookie falhou');
+    };
+
+    // O primeiro Golden Cookie nasce imediatamente; os seguintes respeitam o intervalo.
+    spawnOne();
+    if (spawned >= total) return true;
+
+    if (interval === 0) {
+      while (spawned < total && !state.hardStopped) spawnOne();
+      return spawned === total;
+    }
+
+    state.goldenSpawnTimer = setInterval(spawnOne, interval * 1000);
+    return true;
+  }
+
   /** configureTimers: Configura timer de clique e todos os módulos agendados. */
   function configureTimers() {
     clearAllTimers();
@@ -1993,6 +2056,14 @@
         },
         edit: 'registerTask define tarefas; runScheduledTask executa e registra resultado; watchdogTick é o dono da recuperação.'
       },
+      golden: {
+        title: 'Golden Cookies',
+        commands: {
+          'bot_spawn_golden_cookies()': 'spawna 10 Golden Cookies por padrão, com 5 segundos entre eles',
+          'bot_spawn_golden_cookies(quantidade, intervalo)': 'define quantidade e intervalo em segundos'
+        },
+        edit: 'A função bot_spawn_golden_cookies usa Game.shimmer("golden"). O timer é rastreado por clearAllTimers para obedecer Bot_Stop e Bot_Stop_And_Break.'
+      },
       minigames: {
         title: 'Minigames',
         commands: {
@@ -2046,7 +2117,7 @@
       const key = String(topic).trim().toLowerCase();
       const aliases = {
         start: 'lifecycle', stop: 'lifecycle', break: 'lifecycle', bot: 'lifecycle',
-        upgrade: 'upgrades', upgrades: 'upgrades', compra: 'upgrades', compras: 'upgrades',
+        upgrade: 'upgrades', upgrades: 'upgrades', compra: 'upgrades', compras: 'upgrades', golden: 'golden', goldencookies: 'golden',
         ascend: 'ascension', ascension: 'ascension', prestígio: 'ascension',
         scheduler: 'scheduler', watchdog: 'scheduler', health: 'scheduler',
         minigame: 'minigames', minigames: 'minigames',
@@ -2076,7 +2147,8 @@
         'Bot_Help()',
         'CookieBotV6.status()',
         'CookieBotV6.diagnostics()',
-        'CookieBotV6.config({...})'
+        'CookieBotV6.config({...})',
+        'bot_spawn_golden_cookies()'
       ],
       topics: Object.fromEntries(Object.entries(topics).map(([key, value]) => [key, value.title])),
       maintenance: {
@@ -2192,6 +2264,7 @@
   window.Bot_Start = Bot_Start;
   window.Bot_Stop = Bot_Stop;
   window.Bot_Help = Bot_Help;
+  window.bot_spawn_golden_cookies = bot_spawn_golden_cookies;
   window.Bot_Stop_And_Break = Bot_Stop_And_Break;
   CONTROL.version = VERSION;
   CONTROL.updatedAt = Date.now();
