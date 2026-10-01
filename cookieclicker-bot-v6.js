@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.22.0';
+  const VERSION = '6.23.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
   const CONTROL_KEY = '__COOKIE_CLICKER_BOT_CONTROL__';
   const CONTROL = window[CONTROL_KEY] || { broken: false, updatedAt: 0, version: null };
@@ -166,6 +166,11 @@
     }
   };
 
+  // ============================================================
+  // MÓDULO 01 — RUNTIME / SEGURANÇA / ACESSO AO GAME
+  // Aqui ficam logging, tratamento de erros e helpers de compatibilidade.
+  // ============================================================
+  /** log: Registra mensagens no console respeitando a configuração de logging. */
   function log(level, message, error) {
     if (!CONFIG.logging) return;
     const prefix = level === 'error' ? '❌' : level === 'warn' ? '⚠️' : '🍪';
@@ -176,6 +181,7 @@
     );
   }
 
+  /** safe: Executa uma operação protegida, registra exceções e devolve fallback. */
   function safe(fn, fallback, label) {
     try {
       return fn();
@@ -187,10 +193,12 @@
     }
   }
 
+  /** gameExists: Verifica se o objeto Game existe. */
   function gameExists() {
     return typeof Game !== 'undefined' && Game !== null;
   }
 
+  /** gameReady: Confirma que a API mínima do Cookie Clicker está pronta. */
   function gameReady() {
     if (!gameExists()) return false;
     // Algumas versões expõem Game.ready; outras deixam a flag ausente.
@@ -198,30 +206,36 @@
     return Array.isArray(Game.ObjectsById) && typeof Game.ClickCookie === 'function';
   }
 
+  /** waitForGame: Faz a checagem de prontidão usada pela inicialização. */
   function waitForGame() {
     if (gameReady()) return true;
     log('warn', 'Cookie Clicker ainda não está pronto. O V6 vai aguardar.');
     return false;
   }
 
+  /** cookies: Lê a quantidade atual de cookies. */
   function cookies() {
     return gameExists() ? Number(Game.cookies || 0) : 0;
   }
 
+  /** cps: Lê a produção atual de cookies por segundo. */
   function cps() {
     return gameExists() ? Number(Game.cookiesPs || 0) : 0;
   }
 
+  /** isPaused: Informa se a instância não deve executar tarefas. */
   function isPaused() {
     return !state.active || state.paused;
   }
 
+  /** hasBuff: Procura um buff pelo nome. */
   function hasBuff(text) {
     if (!gameExists() || !Game.buffs) return false;
     const wanted = String(text).toLowerCase();
     return Object.keys(Game.buffs).some(name => name.toLowerCase().includes(wanted));
   }
 
+  /** clickDelay: Calcula o intervalo de clique considerando buffs ativos. */
   function clickDelay() {
     if (hasBuff('click frenzy')) return 5;
     if (hasBuff('elder frenzy')) return 8;
@@ -229,6 +243,11 @@
     return Math.max(5, Number(CONFIG.clickMs) || 25);
   }
 
+  // ============================================================
+  // MÓDULO 02 — CLIQUE E SHIMMERS
+  // Automação direta de cookie, golden cookies, wrath cookies e reindeer.
+  // ============================================================
+  /** clickCookie: Executa um clique no cookie quando o estado permite. */
   function clickCookie() {
     if (isPaused() || state.ascensionPhase !== 'READY' || !gameReady()) return false;
     return safe(() => {
@@ -239,6 +258,7 @@
     }, false, 'clique do cookie falhou');
   }
 
+  /** clickShimmers: Processa shimmers compatíveis com a configuração. */
   function clickShimmers() {
     if (isPaused() || !gameReady() || !Array.isArray(Game.shimmers)) return 0;
     let count = 0;
@@ -262,6 +282,7 @@
     return count;
   }
 
+  /** getBuildingPrice: Obtém o preço atual de um prédio. */
   function getBuildingPrice(building) {
     return safe(() => {
       if (!building) return Infinity;
@@ -275,6 +296,7 @@
     }, Infinity, 'preço de edifício inválido');
   }
 
+  /** getBuildingCps: Estima o CpS fornecido por um prédio. */
   function getBuildingCps(building) {
     return safe(() => {
       if (!building) return 0;
@@ -288,6 +310,7 @@
     }, 0, 'CpS de edifício inválido');
   }
 
+  /** affordable: Verifica se uma compra cabe no orçamento configurado. */
   function affordable(price) {
     if (!Number.isFinite(price) || price < 0) return false;
     const bank = cookies();
@@ -295,6 +318,11 @@
     return price + Number(CONFIG.reserveCookies || 0) <= bank * limit;
   }
 
+  // ============================================================
+  // MÓDULO 03 — ECONOMIA E COMPRAS
+  // Escolha de upgrades/prédios, orçamento, ROI e execução de compras.
+  // ============================================================
+  /** buyBestUpgrade: Seleciona e compra o upgrade economicamente mais adequado. */
   function buyBestUpgrade() {
     if (isPaused() || !CONFIG.buyUpgrades || !gameReady()) return false;
     if (!Array.isArray(Game.UpgradesInStore)) return false;
@@ -319,6 +347,7 @@
     });
   }
 
+  /** buyBestBuilding: Seleciona e compra o prédio com melhor ROI disponível. */
   function buyBestBuilding() {
     if (isPaused() || !CONFIG.buyBuildings || !gameReady()) return false;
     if (!Array.isArray(Game.ObjectsById)) return false;
@@ -349,18 +378,21 @@
     }, false, 'compra de edifício falhou');
   }
 
+  /** effectiveCookieReserve: Calcula a reserva mínima de cookies que deve ser preservada. */
   function effectiveCookieReserve() {
     const bank = cookies();
     const ratio = Math.max(0, Math.min(1, Number(CONFIG.reserveCookiesRatio || 0)));
     return Math.max(0, Number(CONFIG.reserveCookies || 0), bank * ratio);
   }
 
+  /** economicBudget: Calcula o orçamento líquido disponível para compras. */
   function economicBudget() {
     const bank = cookies();
     const limit = Math.max(0, Math.min(1, Number(CONFIG.spendingLimit)));
     return Math.max(0, bank * limit - effectiveCookieReserve());
   }
 
+  /** economicEfficiency: Converte preço, valor e payback em score econômico. */
   function economicEfficiency(price, value, payback) {
     if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(value) || value <= 0) return 0;
     const normalizedPayback = Number.isFinite(payback) && payback > 0 ? payback : CONFIG.targetPaybackSeconds;
@@ -368,6 +400,7 @@
     return (value / price) * Math.min(2, target / Math.max(1, normalizedPayback));
   }
 
+  /** economicScoreBuilding: Calcula o score econômico de um prédio. */
   function economicScoreBuilding(building) {
     const price = getBuildingPrice(building);
     const value = getBuildingCps(building);
@@ -376,6 +409,7 @@
     return economicEfficiency(price, value, payback) * Number(CONFIG.buildingValueWeight || 1);
   }
 
+  /** getUpgradePrice: Obtém o preço de um upgrade usando fallbacks da API. */
   function getUpgradePrice(upgrade) {
     if (!upgrade) return Infinity;
     return safe(() => {
@@ -386,6 +420,7 @@
     }, Infinity, 'preço de upgrade inválido');
   }
 
+  /** upgradeCanBuyNow: Verifica se um upgrade pode ser comprado neste instante. */
   function upgradeCanBuyNow(upgrade) {
     if (!upgrade || upgrade.bought || typeof upgrade.buy !== 'function') return false;
     if (upgrade.pool === 'toggle') return false;
@@ -397,6 +432,7 @@
     return cookies() >= price;
   }
 
+  /** economicScoreUpgrade: Calcula o score econômico de um upgrade com fallback de compra. */
   function economicScoreUpgrade(upgrade) {
     if (!upgrade || upgrade.bought || typeof upgrade.buy !== 'function') return 0;
     const analysis = upgradeAnalysis(upgrade);
@@ -415,6 +451,7 @@
     return 0;
   }
 
+  /** chooseEconomicAction: Compara upgrades e prédios e retorna a ação escolhida. */
   function chooseEconomicAction() {
     if (!gameReady()) return null;
 
@@ -450,6 +487,7 @@
     return buildings.sort((a, b) => b.score - a.score)[0] || null;
   }
 
+  /** executeEconomicAction: Executa uma compra e registra o resultado. */
   function executeEconomicAction(action) {
     if (!action || isPaused()) return false;
     return safe(() => {
@@ -486,10 +524,12 @@
     }, false, 'decisão econômica falhou');
   }
 
+  /** upgradeObservationKey: Retorna a chave de armazenamento das observações de upgrades. */
   function upgradeObservationKey() {
     return '__COOKIE_CLICKER_BOT_V6_UPGRADE_OBSERVATIONS__';
   }
 
+  /** loadUpgradeObservations: Carrega observações estatísticas salvas. */
   function loadUpgradeObservations() {
     if (typeof localStorage === 'undefined') return [];
     return safe(() => {
@@ -501,6 +541,7 @@
     }, [], 'observações de upgrades não puderam ser carregadas');
   }
 
+  /** saveUpgradeObservations: Persiste observações estatísticas de upgrades. */
   function saveUpgradeObservations() {
     if (typeof localStorage === 'undefined') return false;
     return safe(() => {
@@ -511,6 +552,7 @@
     }, false, 'observações de upgrades não puderam ser salvas');
   }
 
+  /** finalizeUpgradeObservations: Finaliza janelas de medição e registra CpS observado. */
   function finalizeUpgradeObservations() {
     if (!state.pendingUpgradeObservations.length || !gameExists()) return 0;
     const now = Date.now();
@@ -552,6 +594,7 @@
     return ready.length;
   }
 
+  /** recordUpgradeObservation: Abre uma nova janela de observação após comprar um upgrade. */
   function recordUpgradeObservation(upgrade, analysis, before, after) {
     if (!upgrade) return false;
     const now = Date.now();
@@ -575,6 +618,7 @@
     return true;
   }
 
+  /** economicReport: Gera e persiste um relatório econômico. */
   function economicReport() {
     const data = {
       generatedAt: new Date().toISOString(),
@@ -594,11 +638,17 @@
   }
 
 
+  // ============================================================
+  // MÓDULO 04 — GRIMOIRE
+  // Adaptador defensivo para a API variável do minigame do Wizard Tower.
+  // ============================================================
+  /** grimoireMinigame: Obtém o minigame do Grimoire quando disponível. */
   function grimoireMinigame() {
     const obj = Game && Game.ObjectsById && Game.ObjectsById[7];
     return obj && obj.minigame ? obj.minigame : null;
   }
 
+  /** grimoireSpellList: Normaliza a lista de feitiços do Grimoire. */
   function grimoireSpellList(minigame) {
     if (!minigame) return [];
     if (Array.isArray(minigame.spells)) return minigame.spells;
@@ -608,6 +658,7 @@
     return [];
   }
 
+  /** findGrimoireSpell: Localiza um feitiço por nome ou identificador. */
   function findGrimoireSpell(minigame) {
     const requested = String(CONFIG.grimoireSpell || '').trim().toLowerCase();
     const spells = grimoireSpellList(minigame);
@@ -618,6 +669,7 @@
     return spells.find(s => /frenzy|conjure|hand of fate/i.test(String(s.name || ''))) || spells[0] || null;
   }
 
+  /** castGrimoire: Tenta conjurar o feitiço configurado. */
   function castGrimoire() {
     if (!CONFIG.grimoireEnabled || isPaused() || !gameReady()) return false;
     const minigame = grimoireMinigame();
@@ -639,11 +691,17 @@
   }
 
 
+  // ============================================================
+  // MÓDULO 05 — GARDEN
+  // Leitura de tiles, colheita e plantio opcional.
+  // ============================================================
+  /** gardenMinigame: Obtém o minigame do Garden quando disponível. */
   function gardenMinigame() {
     const farm = Game && Game.ObjectsById && Game.ObjectsById[2];
     return farm && farm.minigame ? farm.minigame : null;
   }
 
+  /** gardenTiles: Normaliza a grade de tiles do Garden. */
   function gardenTiles(garden) {
     if (!garden) return [];
     if (Array.isArray(garden.plot)) return garden.plot;
@@ -651,6 +709,7 @@
     return [];
   }
 
+  /** harvestGarden: Colhe plantas maduras conforme configuração. */
   function harvestGarden() {
     if (!CONFIG.gardenEnabled || isPaused() || !gameReady()) return false;
     const garden = gardenMinigame();
@@ -675,6 +734,7 @@
     return harvested > 0;
   }
 
+  /** plantGarden: Planta a espécie configurada quando possível. */
   function plantGarden() {
     if (!CONFIG.gardenEnabled || !CONFIG.gardenAutoPlant || isPaused() || !gameReady()) return false;
     const garden = gardenMinigame();
@@ -697,6 +757,7 @@
     return planted > 0;
   }
 
+  /** gardenCycle: Executa o ciclo automático do Garden. */
   function gardenCycle() {
     if (!CONFIG.gardenEnabled) return false;
     const harvested = harvestGarden();
@@ -705,11 +766,17 @@
   }
 
 
+  // ============================================================
+  // MÓDULO 06 — STOCK MARKET
+  // Leitura de mercadorias e gerenciamento opcional de compra/venda.
+  // ============================================================
+  /** marketMinigame: Obtém o minigame do Stock Market quando disponível. */
   function marketMinigame() {
     const bank = Game && Game.ObjectsById && Game.ObjectsById[5];
     return bank && bank.minigame ? bank.minigame : null;
   }
 
+  /** marketGoods: Lista as mercadorias conhecidas do mercado. */
   function marketGoods(minigame) {
     if (!minigame) return [];
     const source = minigame.goodsById || minigame.goods;
@@ -718,10 +785,12 @@
     return Object.keys(source).map(k => source[k]).filter(Boolean);
   }
 
+  /** marketPrice: Obtém o preço atual de uma mercadoria. */
   function marketPrice(good) {
     return Number(good && (good.val !== undefined ? good.val : good.price));
   }
 
+  /** manageMarket: Executa a política configurada do mercado. */
   function manageMarket() {
     if (!CONFIG.marketEnabled || isPaused() || !gameReady()) return false;
     const market = marketMinigame();
@@ -760,6 +829,11 @@
     return changed;
   }
 
+  // ============================================================
+  // MÓDULO 07 — WRINKLERS E CICLO DE COMPRAS
+  // Coordena compras econômicas e gerenciamento de wrinklers.
+  // ============================================================
+  /** purchaseCycle: Coordena a decisão de compra da economia. */
   function purchaseCycle() {
     if (isPaused() || !gameReady()) return;
     if (CONFIG.economyEnabled) {
@@ -772,6 +846,7 @@
     buyBestBuilding();
   }
 
+  /** activeWrinklers: Lista wrinklers ativos que podem ser gerenciados. */
   function activeWrinklers() {
     if (!gameReady() || !Array.isArray(Game.wrinklers)) return [];
     return Game.wrinklers.filter(w =>
@@ -781,6 +856,7 @@
     );
   }
 
+  /** manageWrinklers: Gerencia wrinklers de acordo com a reserva configurada. */
   function manageWrinklers() {
     if (isPaused() || !CONFIG.popWrinklers) return 0;
     const active = activeWrinklers();
@@ -799,6 +875,11 @@
     return targets.length;
   }
 
+  // ============================================================
+  // MÓDULO 08 — ASCENSÃO / PRESTÍGIO / REINCARNAÇÃO
+  // Análise econômica, transição, verificação e recuperação segura.
+  // ============================================================
+  /** prestigeGain: Calcula ganho potencial de prestígio. */
   function prestigeGain() {
     if (!gameReady() || typeof Game.HowMuchPrestige !== 'function') return 0;
     return safe(() => {
@@ -808,6 +889,7 @@
     }, 0, 'prestígio falhou');
   }
 
+  /** ascensionAnalysis: Estima ganho, recuperação e payback de uma ascensão. */
   function ascensionAnalysis() {
     state.stats.ascensionChecks = (state.stats.ascensionChecks || 0) + 1;
     if (!gameReady()) {
@@ -871,6 +953,7 @@
     };
   }
 
+  /** upgradeStatProfile: Estima valor estatístico/econômico de um upgrade. */
   function upgradeStatProfile(upgrade) {
     if (!upgrade) return null;
 
@@ -951,15 +1034,18 @@
     };
   }
 
+  /** upgradeAnalysis: Alias público para a análise estatística de upgrades. */
   function upgradeAnalysis(upgrade) {
     return upgradeStatProfile(upgrade);
   }
 
+  /** shouldAscend: Verifica se a configuração permite iniciar ascensão. */
   function shouldAscend() {
     const analysis = ascensionAnalysis();
     return CONFIG.autoAscend && !state.ascending && !isPaused() && analysis.worthIt;
   }
 
+  /** buyHeavenlyUpgrades: Compra upgrades celestiais disponíveis. */
   function buyHeavenlyUpgrades() {
     if (!gameReady() || !CONFIG.buyHeavenlyUpgrades || !Game.Upgrades) return 0;
     let bought = 0;
@@ -981,6 +1067,7 @@
     return bought;
   }
 
+  /** registerTimeout: Registra um timeout rastreável e cancelável. */
   function registerTimeout(name, delay, fn) {
     if (state.hardStopped) return null;
     const id = setTimeout(() => {
@@ -992,6 +1079,7 @@
     return id;
   }
 
+  /** verifyAscensionTransition: Verifica sinais de que a ascensão realmente ocorreu. */
   function verifyAscensionTransition(snapshot) {
     if (!gameReady() || !snapshot) return false;
     const currentCookies = cookies();
@@ -1002,6 +1090,7 @@
     return cookieDrop || resetIncreased || reincarnated;
   }
 
+  /** ascensionReport: Retorna o estado e resultado da última ascensão. */
   function ascensionReport() {
     const analysis = ascensionAnalysis();
     const snapshot = state.ascensionSnapshot;
@@ -1019,6 +1108,7 @@
     };
   }
 
+  /** failAscension: Entra em falha segura e interrompe a automação. */
   function failAscension(reason, error) {
     state.stats.ascensionFailures = (state.stats.ascensionFailures || 0) + 1;
     state.stats.errors++;
@@ -1038,6 +1128,7 @@
     return false;
   }
 
+  /** recoverAscensionFailure: Recupera manualmente um estado FAILED sem repetir ascensão. */
   function recoverAscensionFailure() {
     if (state.ascensionPhase !== 'FAILED') return false;
     if (!gameReady()) return false;
@@ -1059,6 +1150,7 @@
     return true;
   }
 
+  /** performAscension: Executa o fluxo de ascensão, verificação e pós-ascensão. */
   function performAscension() {
     if (state.hardStopped) return false;
     const analysis = ascensionAnalysis();
@@ -1156,15 +1248,22 @@
     }
   }
 
+  /** tryAscend: Tenta ascensão pelo caminho automático. */
   function tryAscend() {
     return performAscension();
   }
 
+  // ============================================================
+  // MÓDULO 09 — PANTHEON
+  // Seleção defensiva de templo/gods quando habilitado.
+  // ============================================================
+  /** pantheonMinigame: Obtém o minigame do Pantheon. */
   function pantheonMinigame() {
     const temple = Game && Game.ObjectsById && Game.ObjectsById[6];
     return temple && temple.minigame ? temple.minigame : null;
   }
 
+  /** pantheonGods: Normaliza a lista de deuses disponíveis. */
   function pantheonGods(minigame) {
     if (!minigame) return [];
     const source = minigame.godsById || minigame.gods;
@@ -1173,6 +1272,7 @@
     return Object.keys(source).map(key => source[key]).filter(Boolean);
   }
 
+  /** findPantheonGod: Localiza um deus do Pantheon. */
   function findPantheonGod(minigame) {
     const requested = String(CONFIG.pantheonGod || '').trim().toLowerCase();
     if (!requested) return null;
@@ -1183,6 +1283,7 @@
     ) || null;
   }
 
+  /** managePantheon: Aplica a configuração de slot/deus do Pantheon. */
   function managePantheon() {
     if (!CONFIG.pantheonEnabled || isPaused() || !gameReady()) return false;
     const temple = pantheonMinigame();
@@ -1211,6 +1312,11 @@
     }, false, 'Pantheon falhou');
   }
 
+  // ============================================================
+  // MÓDULO 10 — DRAGON / SEASONS / SUGAR LUMPS
+  // Automação opcional dos sistemas sazonais e progressão especial.
+  // ============================================================
+  /** dragonAuras: Obtém a lista de auras do Dragon. */
   function dragonAuras() {
     if (!gameExists()) return [];
     const source = Game.dragonAuras;
@@ -1219,6 +1325,7 @@
     return Object.keys(source).map(key => source[key]).filter(Boolean);
   }
 
+  /** findDragonAura: Localiza uma aura do Dragon. */
   function findDragonAura(name) {
     const requested = String(name || '').trim().toLowerCase();
     if (!requested) return null;
@@ -1229,6 +1336,7 @@
     ) || null;
   }
 
+  /** manageDragon: Aplica a aura do Dragon conforme configuração. */
   function manageDragon() {
     if (!CONFIG.dragonEnabled || isPaused() || !gameReady()) return false;
     if (typeof Game.SetDragonAura !== 'function') return false;
@@ -1256,6 +1364,7 @@
     }, false, 'aura do dragão falhou');
   }
 
+  /** manageSeason: Inicia uma temporada compatível com a prioridade configurada. */
   function manageSeason() {
     if (!CONFIG.seasonsEnabled || isPaused() || !gameReady()) return false;
     if (typeof Game.startSeason !== 'function') return false;
@@ -1274,6 +1383,7 @@
     return false;
   }
 
+  /** sugarLumpReady: Verifica se um Sugar Lump está pronto para coleta. */
   function sugarLumpReady() {
     if (!gameReady()) return false;
     if (typeof Game.canLumps === 'function' && !Game.canLumps()) return false;
@@ -1282,6 +1392,7 @@
     return lumpTime > minimum;
   }
 
+  /** manageSugarLump: Coleta Sugar Lump quando habilitado. */
   function manageSugarLump() {
     if (!CONFIG.sugarLumpsEnabled || isPaused() || !gameReady()) return false;
     if (!sugarLumpReady() || typeof Game.clickLump !== 'function') return false;
@@ -1296,6 +1407,11 @@
     }, false, 'Sugar Lump falhou');
   }
 
+  // ============================================================
+  // MÓDULO 11 — STATUS E DIAGNÓSTICO
+  // Exposição do estado do bot e das capacidades encontradas no jogo.
+  // ============================================================
+  /** moduleStatus: Resume capacidades detectadas dos módulos. */
   function moduleStatus() {
     if (!gameExists()) return {};
     const wizard = Game.Objects && Game.Objects['Wizard tower'];
@@ -1320,6 +1436,7 @@
     };
   }
 
+  /** session: Retorna métricas básicas da sessão. */
   function session() {
     const elapsed = state.startedAt ? (Date.now() - state.startedAt) / 3600000 : 0;
     return {
@@ -1337,6 +1454,7 @@
     };
   }
 
+  /** status: Mostra status, estatísticas e módulos no console. */
   function status() {
     const data = session();
     console.group('🍪 CookieBot V6 — Status');
@@ -1347,6 +1465,7 @@
     return { ...data, stats: { ...state.stats }, modules: moduleStatus() };
   }
 
+  /** diagnostics: Mostra diagnóstico operacional do jogo e da V6. */
   function diagnostics() {
     const report = {
       version: VERSION,
@@ -1372,12 +1491,18 @@
     return report;
   }
 
+  // ============================================================
+  // MÓDULO 12 — HEALTH / SCHEDULER / WATCHDOG
+  // Observabilidade, execução periódica e recuperação controlada.
+  // ============================================================
+  /** runTask: Executa uma tarefa de timer com proteção contra falhas. */
   function runTask(name, fn) {
     if (state.hardStopped || !state.active || state.paused) return;
     state.stats.ticks++;
     safe(fn, null, 'tarefa ' + name + ' falhou');
   }
 
+  /** taskHealthSnapshot: Produz snapshot de saúde de todas as tarefas. */
   function taskHealthSnapshot() {
     const now = Date.now();
     return [...state.schedulerTasks.values()].map(task => {
@@ -1395,6 +1520,7 @@
     });
   }
 
+  /** healthSummary: Resume contagens de saúde das tarefas. */
   function healthSummary() {
     state.stats.healthChecks = (state.stats.healthChecks || 0) + 1;
     const tasks = taskHealthSnapshot();
@@ -1417,15 +1543,18 @@
     return summary;
   }
 
+  /** healthHistory: Retorna histórico de saúde. */
   function healthHistory() {
     return [...state.healthHistory];
   }
 
+  /** clearHealthHistory: Limpa o histórico de saúde em memória. */
   function clearHealthHistory() {
     state.healthHistory = [];
     return true;
   }
 
+  /** healthCycle: Observa saúde e registra detecções de tarefas STALE. */
   function healthCycle() {
     if (!state.active || state.paused) return null;
     const before = healthSummary();
@@ -1442,6 +1571,7 @@
     };
   }
 
+  /** operationalState: Determina o estado operacional atual da V6. */
   function operationalState() {
     if (!state.active) return 'IDLE';
     if (state.paused) return 'PAUSED';
@@ -1451,6 +1581,7 @@
     return 'RUNNING';
   }
 
+  /** registerTask: Registra uma tarefa no Scheduler. */
   function registerTask(name, intervalMs, priority, handler) {
     if (!name || typeof handler !== 'function') return false;
     state.schedulerTasks.set(name, {
@@ -1467,6 +1598,7 @@
     return true;
   }
 
+  /** runScheduledTask: Executa uma tarefa do Scheduler e registra sucesso/falha. */
   function runScheduledTask(task, now, recovery = false) {
     const started = performance.now();
     try {
@@ -1500,6 +1632,7 @@
     }
   }
 
+  /** schedulerTick: Executa tarefas cujo intervalo já venceu. */
   function schedulerTick() {
     if (state.hardStopped || !state.active || state.paused) return;
     state.stats.schedulerTicks = (state.stats.schedulerTicks || 0) + 1;
@@ -1514,6 +1647,7 @@
       });
   }
 
+  /** watchdogTick: Detecta tarefas atrasadas e tenta recuperação controlada. */
   function watchdogTick() {
     if (state.hardStopped || !state.active || state.paused) return;
     const transitionActive = state.ascensionPhase !== 'READY';
@@ -1543,6 +1677,7 @@
     }
   }
 
+  /** startScheduler: Inicia Scheduler e Watchdog. */
   function startScheduler() {
     if (state.hardStopped) return false;
     stopScheduler();
@@ -1551,6 +1686,7 @@
     return true;
   }
 
+  /** stopScheduler: Para Scheduler e Watchdog. */
   function stopScheduler() {
     if (state.schedulerTimer) clearInterval(state.schedulerTimer);
     if (state.watchdogTimer) clearInterval(state.watchdogTimer);
@@ -1559,6 +1695,7 @@
     return true;
   }
 
+  /** configureScheduler: Reconstrói a tabela de tarefas conforme CONFIG. */
   function configureScheduler() {
     state.schedulerTasks.clear();
     state.taskLastRun.clear();
@@ -1589,6 +1726,7 @@
     return state.schedulerTasks.size;
   }
 
+  /** addTimer: Cria um timer de intervalo rastreável. */
   function addTimer(name, interval, fn) {
     if (state.hardStopped) return;
     removeTimer(name);
@@ -1596,12 +1734,14 @@
     state.timers.set(name, id);
   }
 
+  /** removeTimer: Remove um timer específico. */
   function removeTimer(name) {
     const id = state.timers.get(name);
     if (id) clearInterval(id);
     state.timers.delete(name);
   }
 
+  /** clearAllTimers: Cancela timers, Scheduler e timeouts controlados. */
   function clearAllTimers() {
     state.timers.forEach(id => clearInterval(id));
     state.timers.clear();
@@ -1615,10 +1755,16 @@
   }
 
 
+  // ============================================================
+  // MÓDULO 13 — PERSISTÊNCIA
+  // Histórico da sessão e observações estatísticas de upgrades.
+  // ============================================================
+  /** historyKey: Retorna a chave de armazenamento do histórico. */
   function historyKey() {
     return '__COOKIE_CLICKER_BOT_V6_HISTORY__';
   }
 
+  /** loadHistory: Carrega histórico persistido. */
   function loadHistory() {
     if (!CONFIG.historyEnabled || typeof localStorage === 'undefined') return [];
     return safe(() => {
@@ -1629,6 +1775,7 @@
     }, [], 'histórico não pôde ser carregado');
   }
 
+  /** saveHistory: Adiciona e persiste uma entrada de histórico. */
   function saveHistory(entry) {
     if (!CONFIG.historyEnabled || typeof localStorage === 'undefined') return false;
     return safe(() => {
@@ -1644,10 +1791,12 @@
     }, false, 'histórico não pôde ser salvo');
   }
 
+  /** performanceHistory: Retorna cópia do histórico atual. */
   function performanceHistory() {
     return [...state.history];
   }
 
+  /** clearHistory: Limpa histórico em memória e no armazenamento. */
   function clearHistory() {
     state.history = [];
     if (typeof localStorage !== 'undefined') {
@@ -1656,6 +1805,7 @@
     return true;
   }
 
+  /** report: Gera relatório da sessão atual. */
   function report() {
     if (!state.active || !gameReady()) return null;
     const data = {
@@ -1679,6 +1829,11 @@
     return data;
   }
 
+  // ============================================================
+  // MÓDULO 14 — CICLO DE VIDA / TIMERS / API
+  // Inicialização, parada, break global, help e superfície pública.
+  // ============================================================
+  /** configureTimers: Configura timer de clique e todos os módulos agendados. */
   function configureTimers() {
     clearAllTimers();
     // Clicks permanecem em timer próprio porque o scheduler trabalha em escala de segundos.
@@ -1688,6 +1843,7 @@
   }
 
 
+  /** stop: Para a execução normal da instância. */
   function stop() {
     clearAllTimers();
     state.active = false;
@@ -1697,6 +1853,7 @@
     return true;
   }
 
+  /** Bot_Start: Libera eventual break global e inicia o bot. */
   function Bot_Start() {
     CONTROL.broken = false;
     CONTROL.updatedAt = Date.now();
@@ -1707,6 +1864,7 @@
     return started;
   }
 
+  /** Bot_Stop: Para normalmente a instância sem manter bloqueio global. */
   function Bot_Stop() {
     const stopped = stop();
     CONTROL.broken = false;
@@ -1716,6 +1874,7 @@
     return stopped;
   }
 
+  /** Bot_Stop_And_Break: Interrompe tudo e ativa bloqueio global para troca de versão. */
   function Bot_Stop_And_Break() {
     CONTROL.broken = true;
     CONTROL.updatedAt = Date.now();
@@ -1731,6 +1890,7 @@
     return true;
   }
 
+  /** pause: Pausa a automação sem destruir a instância. */
   function pause() {
     if (!state.active) return false;
     state.paused = true;
@@ -1738,6 +1898,7 @@
     return true;
   }
 
+  /** resume: Retoma uma instância pausada. */
   function resume() {
     if (!state.active) return false;
     state.paused = false;
@@ -1745,6 +1906,7 @@
     return true;
   }
 
+  /** start: Inicializa estado da sessão e configura os timers. */
   function start() {
     if (state.hardStopped) return false;
     if (state.active) return true;
@@ -1764,6 +1926,7 @@
     return true;
   }
 
+  /** config: Lê ou atualiza configurações do bot. */
   function config(next) {
     if (!next || typeof next !== 'object') return { ...CONFIG };
     Object.assign(CONFIG, next);
@@ -1771,12 +1934,177 @@
     return { ...CONFIG };
   }
 
+  /**
+   * Help central da V6.
+   * Sem argumento: mostra comandos, módulos e pontos principais de manutenção.
+   * Com tópico: retorna detalhes do comando/módulo solicitado.
+   *
+   * Exemplos:
+   *   Bot_Help()
+   *   Bot_Help('upgrades')
+   *   Bot_Help('ascension')
+   *   Bot_Help('scheduler')
+   *   Bot_Help('lifecycle')
+   */
+  /** Bot_Help: Função interna do módulo; consulte Bot_Help() para o ponto de manutenção relacionado. */
+  function Bot_Help(topic) {
+    const topics = {
+      lifecycle: {
+        title: 'Controle do bot',
+        commands: {
+          Bot_Start: 'inicia/libera a V6',
+          Bot_Stop: 'para normalmente sem bloquear outra execução',
+          Bot_Stop_And_Break: 'para tudo e ativa o bloqueio global para troca de versão',
+          'CookieBotV6.start': 'inicia a instância pela API',
+          'CookieBotV6.stop': 'para a instância pela API',
+          'CookieBotV6.pause': 'pausa tarefas',
+          'CookieBotV6.resume': 'retoma tarefas'
+        },
+        edit: 'Altere a seção Lifecycle/Controles para modificar o comportamento de início, pausa, parada e troca de versão.'
+      },
+      upgrades: {
+        title: 'Upgrades e compras',
+        commands: {
+          'CookieBotV6.upgradeAnalysis(upgrade)': 'analisa preço, ganho estimado, observações e payback',
+          'CookieBotV6.economicScoreUpgrade(upgrade)': 'transforma a análise em score econômico',
+          'CookieBotV6.chooseEconomicAction()': 'escolhe entre upgrades e prédios',
+          'CookieBotV6.buyBestUpgrade()': 'compra o upgrade selecionado'
+        },
+        edit: 'A principal lógica fica nas funções upgradeStatProfile, economicScoreUpgrade, chooseEconomicAction e executeEconomicAction.'
+      },
+      ascension: {
+        title: 'Ascensão',
+        commands: {
+          'CookieBotV6.ascensionAnalysis()': 'calcula ganho, recuperação e payback estimados',
+          'CookieBotV6.shouldAscend()': 'decide se a configuração permite ascensão',
+          'CookieBotV6.performAscension()': 'executa a ascensão aprovada',
+          'CookieBotV6.verifyAscensionTransition(snapshot)': 'confere se a transição ocorreu',
+          'CookieBotV6.recoverAscensionFailure()': 'recupera manualmente um estado FAILED sem repetir a ascensão'
+        },
+        edit: 'Mexa primeiro em ascensionAnalysis/verifyAscensionTransition; performAscension controla o fluxo e failAscension trata falhas.'
+      },
+      scheduler: {
+        title: 'Scheduler, Watchdog e Health',
+        commands: {
+          'CookieBotV6.schedulerTick()': 'executa tarefas vencidas',
+          'CookieBotV6.watchdogTick()': 'detecta tarefas atrasadas e tenta recuperação',
+          'CookieBotV6.taskHealthSnapshot()': 'mostra saúde por tarefa',
+          'CookieBotV6.healthSummary()': 'resume a saúde do Scheduler'
+        },
+        edit: 'registerTask define tarefas; runScheduledTask executa e registra resultado; watchdogTick é o dono da recuperação.'
+      },
+      minigames: {
+        title: 'Minigames',
+        commands: {
+          Grimoire: 'grimoireMinigame, grimoireSpellList, findGrimoireSpell, castGrimoire',
+          Garden: 'gardenMinigame, gardenTiles, harvestGarden, plantGarden, gardenCycle',
+          Market: 'marketMinigame, marketGoods, marketPrice, manageMarket',
+          Pantheon: 'pantheonMinigame, pantheonGods, findPantheonGod, managePantheon',
+          Dragon: 'dragonAuras, findDragonAura, manageDragon',
+          Seasons: 'manageSeason',
+          'Sugar Lumps': 'sugarLumpReady, manageSugarLump'
+        },
+        edit: 'Cada minigame possui seu próprio bloco de funções e configuração. Por padrão, vários módulos permanecem desativados.'
+      },
+      persistence: {
+        title: 'Histórico e estatísticas',
+        commands: {
+          'CookieBotV6.performanceHistory()': 'retorna histórico salvo',
+          'CookieBotV6.clearHistory()': 'limpa histórico em memória e armazenamento',
+          'CookieBotV6.loadUpgradeObservations()': 'carrega observações estatísticas',
+          'CookieBotV6.saveUpgradeObservations()': 'persiste observações estatísticas'
+        },
+        edit: 'historyKey/upgradeObservationKey definem chaves de armazenamento; load/save controlam persistência.'
+      },
+      diagnostics: {
+        title: 'Diagnóstico',
+        commands: {
+          'CookieBotV6.status()': 'status resumido',
+          'CookieBotV6.diagnostics()': 'diagnóstico do jogo e do bot',
+          'CookieBotV6.report()': 'relatório da sessão',
+          'CookieBotV6.economicReport()': 'relatório econômico',
+          'CookieBotV6.ascensionReport()': 'relatório de ascensão'
+        },
+        edit: 'Use status/diagnostics antes de alterar lógica; lastError, taskHealth e stats ajudam a localizar falhas.'
+      },
+      architecture: {
+        title: 'Arquitetura da V6',
+        order: [
+          'CONFIG -> configurações editáveis',
+          'state -> estado em memória da instância',
+          'helpers -> acesso seguro ao Game',
+          'módulos de jogo -> cliques, economia, minigames e ascensão',
+          'health/scheduler -> execução periódica e recuperação',
+          'persistence -> histórico e observações',
+          'lifecycle -> start/stop/break/help/API'
+        ],
+        edit: 'Prefira alterar apenas o módulo responsável. Evite criar timers novos fora de configureTimers/configureScheduler.'
+      }
+    };
+
+    if (topic) {
+      const key = String(topic).trim().toLowerCase();
+      const aliases = {
+        start: 'lifecycle', stop: 'lifecycle', break: 'lifecycle', bot: 'lifecycle',
+        upgrade: 'upgrades', upgrades: 'upgrades', compra: 'upgrades', compras: 'upgrades',
+        ascend: 'ascension', ascension: 'ascension', prestígio: 'ascension',
+        scheduler: 'scheduler', watchdog: 'scheduler', health: 'scheduler',
+        minigame: 'minigames', minigames: 'minigames',
+        history: 'persistence', persistencia: 'persistence', persistência: 'persistence',
+        status: 'diagnostics', diagnostico: 'diagnostics', diagnóstico: 'diagnostics',
+        arquitetura: 'architecture', architecture: 'architecture'
+      };
+      const resolved = topics[key] ? key : aliases[key];
+      const result = resolved ? { topic: resolved, ...topics[resolved] } : {
+        topic: key,
+        title: 'Tópico não encontrado',
+        availableTopics: Object.keys(topics),
+        hint: 'Use Bot_Help() para ver o índice.'
+      };
+      console.group('📚 CookieBot V' + VERSION + ' — Help');
+      console.log(result);
+      console.groupEnd();
+      return result;
+    }
+
+    const index = {
+      version: VERSION,
+      commands: [
+        'Bot_Start()',
+        'Bot_Stop()',
+        'Bot_Stop_And_Break()',
+        'Bot_Help()',
+        'CookieBotV6.status()',
+        'CookieBotV6.diagnostics()',
+        'CookieBotV6.config({...})'
+      ],
+      topics: Object.fromEntries(Object.entries(topics).map(([key, value]) => [key, value.title])),
+      maintenance: {
+        config: 'CONFIG',
+        state: 'state',
+        economy: 'upgradeStatProfile / economicScoreUpgrade / chooseEconomicAction / executeEconomicAction',
+        ascension: 'ascensionAnalysis / verifyAscensionTransition / performAscension',
+        scheduler: 'registerTask / runScheduledTask / schedulerTick / watchdogTick',
+        persistence: 'historyKey / loadHistory / saveHistory / upgradeObservationKey / loadUpgradeObservations'
+      }
+    };
+
+    console.group('📚 CookieBot V' + VERSION + ' — Help');
+    console.table(index.topics);
+    console.log(index);
+    console.log('Detalhe: Bot_Help("upgrades"), Bot_Help("ascension"), etc.');
+    console.groupEnd();
+    return index;
+  }
+
+  /** api: Monta a API pública exposta em CookieBotV6. */
   function api() {
     return {
       version: VERSION,
       start,
       Bot_Start,
       Bot_Stop,
+      Bot_Help,
       Bot_Stop_And_Break,
       stop,
       pause,
@@ -1863,12 +2191,13 @@
   window.CookieBotV6 = window[KEY];
   window.Bot_Start = Bot_Start;
   window.Bot_Stop = Bot_Stop;
+  window.Bot_Help = Bot_Help;
   window.Bot_Stop_And_Break = Bot_Stop_And_Break;
   CONTROL.version = VERSION;
   CONTROL.updatedAt = Date.now();
 
   console.log('%c🍪 Cookie Clicker Bot V' + VERSION + ' carregado', 'font-weight:bold;font-size:14px');
-  console.log('Controles globais: Bot_Start(), Bot_Stop(), Bot_Stop_And_Break().');
+  console.log('Controles globais: Bot_Start(), Bot_Stop(), Bot_Stop_And_Break(), Bot_Help().');
   console.log('Diagnóstico: CookieBotV6.diagnostics()');
 
   if (CONTROL.broken) {
