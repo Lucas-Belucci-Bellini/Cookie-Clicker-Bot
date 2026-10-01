@@ -796,3 +796,36 @@ Bot_Help('golden')
 A implementação foi baseada no mecanismo que já existia no histórico do repositório, evitando criar uma segunda lógica incompatível.
 
 > Validação: código V6.24 verificado estruturalmente no GitHub. Não houve execução dentro de uma sessão real do Cookie Clicker.
+
+
+## V6.25 — Comando de Golden Cookies por atribuição
+
+A V6.25 adiciona uma forma direta de disparar o spawn usando uma atribuição no console:
+
+```js
+bot_golden_cookies = 10
+```
+
+A atribuição é interceptada pelo V6 e equivale a solicitar:
+
+```js
+bot_spawn_golden_cookies(10)
+```
+
+O intervalo usado é o configurado em `goldenSpawnDefaultIntervalSeconds` (5 segundos por padrão).
+
+Também continua disponível a forma funcional:
+
+```js
+bot_golden_cookies(10)
+```
+
+e o comando completo:
+
+```js
+Bot_Spawn_Golden_Cookies(10, 2)
+```
+
+Assim, a V6 aceita tanto uma sintaxe curta de console quanto a API explícita.
+
+> Validação: setter global, chamada funcional e estrutura do código verificados na V6.25. Não houve execução dentro de uma sessão real do Cookie Clicker.
