@@ -754,3 +754,45 @@ A organização recomendada para manutenção é:
 Assim, uma alteração específica deve começar pelo módulo indicado pelo `Bot_Help()`, evitando criar lógica duplicada ou timers paralelos desnecessários.
 
 > Validação: V6.23.0 verificada no GitHub com 109 funções documentadas e balanceamento estrutural de chaves, parênteses e colchetes. Não houve execução dentro de uma sessão real do Cookie Clicker.
+
+
+## V6.24 — Spawn controlado de Golden Cookies
+
+A V6.24 incorpora na V6 a lógica existente de `new Game.shimmer("golden")`, transformando-a em um comando controlado e rastreável.
+
+Comando principal:
+
+```js
+bot_spawn_golden_cookies()
+```
+
+Por padrão:
+
+- quantidade: 10 Golden Cookies;
+- intervalo: 5 segundos;
+- primeiro Golden Cookie: imediato;
+- timer do restante: controlado pela V6.
+
+Também é possível definir os valores:
+
+```js
+bot_spawn_golden_cookies(25, 5)
+```
+
+ou usar o alias:
+
+```js
+Bot_Spawn_Golden_Cookies(10, 2)
+```
+
+O timer de spawn faz parte do ciclo de vida da V6. Portanto `Bot_Stop()` e `Bot_Stop_And_Break()` também interrompem o spawn em andamento.
+
+A função pode ser consultada pelo Help:
+
+```js
+Bot_Help('golden')
+```
+
+A implementação foi baseada no mecanismo que já existia no histórico do repositório, evitando criar uma segunda lógica incompatível.
+
+> Validação: código V6.24 verificado estruturalmente no GitHub. Não houve execução dentro de uma sessão real do Cookie Clicker.
