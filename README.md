@@ -715,3 +715,42 @@ A V6 também expõe esses comandos em `window`, então podem ser chamados direta
 
 > Observação: JavaScript já executado não pode ser literalmente apagado da página, mas o V6 cancela seus timers/timeouts controlados e bloqueia novas execuções do ciclo do bot.
 > Validação: estrutura e controles globais verificados no código da V6.22. Não houve execução dentro de uma sessão real do Cookie Clicker.
+
+
+## V6.23 — Help central + documentação interna
+
+A V6.23 adiciona um sistema de ajuda acessível diretamente pelo console:
+
+```js
+Bot_Help()
+Bot_Help('upgrades')
+Bot_Help('ascension')
+Bot_Help('scheduler')
+Bot_Help('lifecycle')
+Bot_Help('minigames')
+Bot_Help('persistence')
+Bot_Help('diagnostics')
+Bot_Help('architecture')
+```
+
+`Bot_Help()` mostra o índice de comandos e os principais pontos de manutenção. Um tópico retorna os comandos e as funções relacionadas àquela área.
+
+### Documentação do código
+
+A V6.23 também documenta a estrutura interna do arquivo para facilitar manutenção por outra pessoa ou por uma futura versão do próprio projeto.
+
+Foram adicionados:
+
+- cabeçalhos separando os módulos da V6;
+- documentação das configurações e responsabilidades por área;
+- comentário de propósito nas funções da V6;
+- indicação, no Help, de quais funções devem ser alteradas para cada subsistema;
+- descrição do fluxo de Lifecycle, Economia, Ascensão, Scheduler/Watchdog e Persistência.
+
+A organização recomendada para manutenção é:
+
+`CONFIG → state → helpers → módulos de jogo → health/scheduler → persistence → lifecycle/API`
+
+Assim, uma alteração específica deve começar pelo módulo indicado pelo `Bot_Help()`, evitando criar lógica duplicada ou timers paralelos desnecessários.
+
+> Validação: V6.23.0 verificada no GitHub com 109 funções documentadas e balanceamento estrutural de chaves, parênteses e colchetes. Não houve execução dentro de uma sessão real do Cookie Clicker.
