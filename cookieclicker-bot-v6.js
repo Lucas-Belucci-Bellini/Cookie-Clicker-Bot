@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.20.0';
+  const VERSION = '6.21.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
 
   const CONFIG = {
@@ -53,6 +53,7 @@
     upgradeMaxPaybackSeconds: 7200,
     estimatedClicksPerSecond: 10,
     upgradeClickValueWeight: 0.25,
+    upgradeFallbackEnabled: true,
     upgradeValueWeight: 1.2,
     buildingValueWeight: 1,
     historyEnabled: true,
@@ -296,9 +297,12 @@
 
     const candidates = Game.UpgradesInStore
       .filter(u => u && !u.bought && typeof u.buy === 'function')
-      .map(u => ({ item: u, analysis: upgradeAnalysis(u) }))
-      .filter(x => x.analysis && x.analysis.worthIt)
-      .sort((a, b) => Number(b.analysis.score || 0) - Number(a.analysis.score || 0));
+      .map(u => {
+        const analysis = upgradeAnalysis(u);
+        return { item: u, analysis, score: economicScoreUpgrade(u) };
+      })
+      .filter(x => x.score > 0)
+      .sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
 
     const choice = candidates[0];
     if (!choice) return false;
@@ -306,7 +310,7 @@
     return executeEconomicAction({
       type: 'upgrade',
       item: choice.item,
-      score: choice.analysis.score,
+      score: choice.score,
       analysis: choice.analysis
     });
   }
@@ -368,29 +372,78 @@
     return economicEfficiency(price, value, payback) * Number(CONFIG.buildingValueWeight || 1);
   }
 
+  function getUpgradePrice(upgrade) {
+    if (!upgrade) return Infinity;
+    return safe(() => {
+      if (typeof upgrade.getPrice === 'function') return Number(upgrade.getPrice());
+      if (Number.isFinite(Number(upgrade.basePrice))) return Number(upgrade.basePrice);
+      if (Number.isFinite(Number(upgrade.price))) return Number(upgrade.price);
+      return Infinity;
+    }, Infinity, 'preço de upgrade inválido');
+  }
+
+  function upgradeCanBuyNow(upgrade) {
+    if (!upgrade || upgrade.bought || typeof upgrade.buy !== 'function') return false;
+    if (upgrade.pool === 'toggle') return false;
+    const price = getUpgradePrice(upgrade);
+    if (!Number.isFinite(price) || price <= 0) return false;
+    if (typeof upgrade.canBuy === 'function') {
+      return safe(() => Boolean(upgrade.canBuy()), false, 'canBuy de upgrade falhou');
+    }
+    return cookies() >= price;
+  }
+
   function economicScoreUpgrade(upgrade) {
     if (!upgrade || upgrade.bought || typeof upgrade.buy !== 'function') return 0;
     const analysis = upgradeAnalysis(upgrade);
-    if (!analysis || !analysis.worthIt) return 0;
-    return Number(analysis.score || 0);
+    if (!analysis) return 0;
+    if (analysis.worthIt) return Number(analysis.score || 0);
+
+    // Não deixa a heurística econômica impedir a compra de todo upgrade
+    // realmente disponível. O fallback só entra quando o upgrade é comprável.
+    if (CONFIG.upgradeFallbackEnabled && upgradeCanBuyNow(upgrade)) {
+      const price = getUpgradePrice(upgrade);
+      const bank = Math.max(1, cookies());
+      const urgency = Math.max(0, Math.min(1, 1 - (price / bank)));
+      return 0.0001 + urgency * 0.01;
+    }
+
+    return 0;
   }
 
   function chooseEconomicAction() {
     if (!gameReady()) return null;
 
-    const upgrades = Array.isArray(Game.UpgradesInStore)
-      ? Game.UpgradesInStore.filter(u => u && !u.bought).map(u => ({
-          type: 'upgrade', item: u, score: economicScoreUpgrade(u)
-        })).filter(x => x.score > 0)
+    const store = Array.isArray(Game.UpgradesInStore) ? Game.UpgradesInStore : [];
+    const upgrades = CONFIG.buyUpgrades
+      ? store.filter(u => u && !u.bought && typeof u.buy === 'function')
+          .map(u => ({ type: 'upgrade', item: u, score: economicScoreUpgrade(u) }))
+          .filter(x => x.score > 0)
       : [];
 
-    const buildings = Array.isArray(Game.ObjectsById)
-      ? Game.ObjectsById.filter(b => b && !b.locked).map(b => ({
+    const strictUpgrades = upgrades.filter(x => {
+      const a = upgradeAnalysis(x.item);
+      return a && a.worthIt;
+    });
+
+    // Upgrades economicamente válidos sempre competem com prédios.
+    const buildings = CONFIG.buyBuildings && strictUpgrades.length === 0
+      ? (Array.isArray(Game.ObjectsById) ? Game.ObjectsById.filter(b => b && !b.locked).map(b => ({
           type: 'building', item: b, score: economicScoreBuilding(b)
-        })).filter(x => x.score > 0)
+        })).filter(x => x.score > 0) : [])
       : [];
 
-    return upgrades.concat(buildings).sort((a, b) => b.score - a.score)[0] || null;
+    if (strictUpgrades.length) {
+      return strictUpgrades.sort((a, b) => b.score - a.score)[0] || null;
+    }
+
+    // Quando não há upgrade com payback aceitável, prioriza um upgrade
+    // realmente comprável antes de recorrer a prédios.
+    if (upgrades.length) {
+      return upgrades.sort((a, b) => b.score - a.score)[0] || null;
+    }
+
+    return buildings.sort((a, b) => b.score - a.score)[0] || null;
   }
 
   function executeEconomicAction(action) {
@@ -401,7 +454,12 @@
         cps: cps(),
         time: Date.now()
       };
-      action.item.buy(1);
+      const priceBefore = action.type === 'upgrade' ? getUpgradePrice(action.item) : 0;
+      if (action.type === 'upgrade' && !upgradeCanBuyNow(action.item)) {
+        return false;
+      }
+
+      action.item.buy(action.type === 'upgrade' ? undefined : 1);
       const after = {
         cookies: cookies(),
         cps: cps(),
@@ -409,6 +467,9 @@
       };
 
       if (action.type === 'upgrade') {
+        if (!action.item.bought && cookies() >= before.cookies - Math.max(0, priceBefore) * 0.5) {
+          return false;
+        }
         state.stats.upgrades++;
         state.lastAction = 'upgrade:economia:' + String(action.item.name || action.item.id);
         recordUpgradeObservation(action.item, action.analysis || upgradeAnalysis(action.item), before, after);
