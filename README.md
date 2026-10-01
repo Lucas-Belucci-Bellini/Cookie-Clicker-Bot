@@ -668,3 +668,50 @@ Nova configuração:
 A análise estatística continua influenciando a escolha; ela deixa de ser um bloqueio absoluto para a compra.
 
 > Validação: estrutura do código e presença do novo fluxo verificadas no GitHub. Não houve execução dentro de uma sessão real do Cookie Clicker.
+
+
+## V6.22 — Controles globais de ciclo de vida
+
+A V6.22 adiciona comandos globais para controlar completamente a execução do bot no console.
+
+### Iniciar
+
+`Bot_Start()`
+
+Inicia a instância V6 carregada e libera um eventual bloqueio global anterior.
+
+### Parar
+
+`Bot_Stop()`
+
+Para normalmente a instância atual e mantém o código disponível para ser iniciado novamente com `Bot_Start()`.
+
+### Parar e bloquear
+
+`Bot_Stop_And_Break()`
+
+É o comando indicado antes de trocar para outra versão do bot.
+
+Ele:
+
+- cancela timers e Scheduler;
+- cancela timeouts rastreados;
+- desativa a instância;
+- ativa um bloqueio global persistente na página;
+- impede que a próxima versão carregada faça o auto-start;
+- só libera novamente quando `Bot_Start()` for executado.
+
+Exemplo de troca segura de versão:
+
+```text
+Bot_Stop_And_Break()
+
+// agora cole/carregue a nova versão
+
+Bot_Start()
+```
+
+A V6 também expõe esses comandos em `window`, então podem ser chamados diretamente no console sem depender de `CookieBotV6`.
+
+> Observação: JavaScript já executado não pode ser literalmente apagado da página, mas o V6 cancela seus timers/timeouts controlados e bloqueia novas execuções do ciclo do bot.
+> Validação: estrutura e controles globais verificados no código da V6.22. Não houve execução dentro de uma sessão real do Cookie Clicker.
