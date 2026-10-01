@@ -7,10 +7,18 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.25.0';
+  const VERSION = '6.26.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
+  // Controlador persistente entre versões. Ele fica em window para que
+  // os comandos globais não dependam do fechamento da V6 atualmente carregada.
   const CONTROL_KEY = '__COOKIE_CLICKER_BOT_CONTROL__';
-  const CONTROL = window[CONTROL_KEY] || { broken: false, updatedAt: 0, version: null };
+  const CONTROL = window[CONTROL_KEY] || {
+    broken: false,
+    updatedAt: 0,
+    version: null,
+    instanceKey: KEY,
+    mode: 'STOPPED'
+  };
   window[CONTROL_KEY] = CONTROL;
 
   const CONFIG = {
@@ -1942,41 +1950,106 @@
     return true;
   }
 
-  /** Bot_Start: Libera eventual break global e inicia o bot. */
+  /** Bot_Start: inicia a instância V6 atualmente registrada no controlador global. */
   function Bot_Start() {
+    const instance = window[CONTROL.instanceKey] || window.CookieBotV6 || window[KEY];
     CONTROL.broken = false;
+    CONTROL.mode = 'STARTING';
     CONTROL.updatedAt = Date.now();
     CONTROL.version = VERSION;
+
+    if (instance && typeof instance.start === 'function') {
+      const started = instance.start();
+      CONTROL.mode = started ? 'RUNNING' : 'WAITING_GAME';
+      log('info', started ? 'Bot_Start: bot iniciado.' : 'Bot_Start: jogo ainda não está pronto.');
+      return Boolean(started);
+    }
+
     state.hardStopped = false;
     const started = start();
+    CONTROL.mode = started ? 'RUNNING' : 'WAITING_GAME';
     log('info', started ? 'Bot_Start: bot iniciado.' : 'Bot_Start: jogo ainda não está pronto.');
-    return started;
+    return Boolean(started);
   }
 
-  /** Bot_Stop: Para normalmente a instância sem manter bloqueio global. */
+  /** Bot_Stop: para a instância atualmente registrada sem ativar break global. */
   function Bot_Stop() {
-    const stopped = stop();
+    const instance = window[CONTROL.instanceKey] || window.CookieBotV6 || window[KEY];
+    let stopped = false;
+
+    if (instance && typeof instance.stop === 'function') {
+      stopped = Boolean(instance.stop());
+    } else if (window[KEY] === instance) {
+      stopped = stop();
+    } else {
+      clearAllTimers();
+      state.active = false;
+      state.paused = false;
+      stopped = true;
+    }
+
     CONTROL.broken = false;
+    CONTROL.mode = 'STOPPED';
     CONTROL.updatedAt = Date.now();
     CONTROL.version = VERSION;
     log('info', 'Bot_Stop: execução normal encerrada.');
     return stopped;
   }
 
-  /** Bot_Stop_And_Break: Interrompe tudo e ativa bloqueio global para troca de versão. */
+  /** Bot_Stop_And_Break: para a instância atual e bloqueia auto-start até Bot_Start. */
   function Bot_Stop_And_Break() {
+    const instance = window[CONTROL.instanceKey] || window.CookieBotV6 || window[KEY];
+
     CONTROL.broken = true;
+    CONTROL.mode = 'BREAK';
     CONTROL.updatedAt = Date.now();
     CONTROL.version = VERSION;
+    CONTROL.instanceKey = KEY;
+
+    if (instance && typeof instance.stop === 'function') {
+      safe(() => instance.stop(), null, 'instância ativa durante Bot_Stop_And_Break');
+    } else {
+      clearAllTimers();
+    }
 
     state.hardStopped = true;
-    clearAllTimers();
     state.active = false;
     state.paused = true;
     state.ascending = false;
-    state.ascensionPhase = state.ascensionPhase === 'ASCENDING' ? 'FAILED' : state.ascensionPhase;
-    log('warn', 'Bot_Stop_And_Break: V6 completamente interrompida. Nenhum auto-start será feito até Bot_Start.');
+    if (state.ascensionPhase === 'ASCENDING') state.ascensionPhase = 'FAILED';
+
+    log('warn', 'Bot_Stop_And_Break: execução global bloqueada até Bot_Start.');
     return true;
+  }
+
+  /** Bot_Status: mostra o controlador global e o estado da instância V6 atual. */
+  function Bot_Status() {
+    const instance = window[CONTROL.instanceKey] || window.CookieBotV6 || window[KEY];
+    const status = instance && typeof instance.status === 'function'
+      ? instance.status()
+      : {
+          version: VERSION,
+          active: state.active,
+          paused: state.paused,
+          hardStopped: state.hardStopped,
+          phase: state.ascensionPhase
+        };
+
+    const result = {
+      controller: {
+        broken: Boolean(CONTROL.broken),
+        mode: CONTROL.mode,
+        version: CONTROL.version,
+        updatedAt: CONTROL.updatedAt,
+        instanceKey: CONTROL.instanceKey
+      },
+      instance: status
+    };
+
+    console.group('🎛️ CookieBot — Controller');
+    console.log(result);
+    console.groupEnd();
+    return result;
   }
 
   /** pause: Pausa a automação sem destruir a instância. */
@@ -2287,6 +2360,9 @@
 
   window[KEY] = api();
   window.CookieBotV6 = window[KEY];
+  CONTROL.instanceKey = KEY;
+  CONTROL.version = VERSION;
+  CONTROL.updatedAt = Date.now();
   window.Bot_Start = Bot_Start;
   window.Bot_Stop = Bot_Stop;
   window.Bot_Help = Bot_Help;
@@ -2294,11 +2370,19 @@
   window.Bot_Spawn_Golden_Cookies = bot_spawn_golden_cookies;
   installGoldenCookieAssignmentCommand();
   window.Bot_Stop_And_Break = Bot_Stop_And_Break;
+  window.Bot_Status = Bot_Status;
+  window.Bot = window.Bot || {};
+  window.Bot.Start = Bot_Start;
+  window.Bot.Stop = Bot_Stop;
+  window.Bot.Break = Bot_Stop_And_Break;
+  window.Bot.Status = Bot_Status;
+  window.Bot.Help = Bot_Help;
   CONTROL.version = VERSION;
   CONTROL.updatedAt = Date.now();
 
   console.log('%c🍪 Cookie Clicker Bot V' + VERSION + ' carregado', 'font-weight:bold;font-size:14px');
-  console.log('Controles globais: Bot_Start(), Bot_Stop(), Bot_Stop_And_Break(), Bot_Help().');
+  console.log('Controles globais: Bot_Start(), Bot_Stop(), Bot_Stop_And_Break(), Bot_Status(), Bot_Help().');
+  console.log('Controlador: Bot.Start(), Bot.Stop(), Bot.Break(), Bot.Status(), Bot.Help().');
   console.log('Diagnóstico: CookieBotV6.diagnostics()');
 
   if (CONTROL.broken) {
