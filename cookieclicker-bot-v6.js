@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.24.0';
+  const VERSION = '6.25.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
   const CONTROL_KEY = '__COOKIE_CLICKER_BOT_CONTROL__';
   const CONTROL = window[CONTROL_KEY] || { broken: false, updatedAt: 0, version: null };
@@ -1897,6 +1897,31 @@
     return true;
   }
 
+  // Atalho global com sintaxe de atribuição:
+  //   bot_golden_cookies = 10
+  // O setter chama o mesmo motor de spawn da V6.
+  function installGoldenCookieAssignmentCommand() {
+    const command = function(amount) {
+      return bot_spawn_golden_cookies(amount);
+    };
+
+    try {
+      Object.defineProperty(window, 'bot_golden_cookies', {
+        configurable: true,
+        enumerable: true,
+        get: () => command,
+        set: amount => {
+          bot_spawn_golden_cookies(amount);
+        }
+      });
+      return true;
+    } catch (error) {
+      log('warn', 'Não foi possível instalar bot_golden_cookies como comando de atribuição.', error);
+      window.bot_golden_cookies = command;
+      return false;
+    }
+  }
+
   /** configureTimers: Configura timer de clique e todos os módulos agendados. */
   function configureTimers() {
     clearAllTimers();
@@ -2267,6 +2292,7 @@
   window.Bot_Help = Bot_Help;
   window.bot_spawn_golden_cookies = bot_spawn_golden_cookies;
   window.Bot_Spawn_Golden_Cookies = bot_spawn_golden_cookies;
+  installGoldenCookieAssignmentCommand();
   window.Bot_Stop_And_Break = Bot_Stop_And_Break;
   CONTROL.version = VERSION;
   CONTROL.updatedAt = Date.now();
