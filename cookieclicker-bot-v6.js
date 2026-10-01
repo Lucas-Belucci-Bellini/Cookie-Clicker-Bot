@@ -1849,7 +1849,8 @@
     }
 
     const total = Math.max(1, Math.floor(Number(amount) || CONFIG.goldenSpawnDefaultAmount || 10));
-    const interval = Math.max(0, Number(intervalSeconds) || CONFIG.goldenSpawnDefaultIntervalSeconds || 5);
+    const intervalInput = intervalSeconds === undefined || intervalSeconds === null ? CONFIG.goldenSpawnDefaultIntervalSeconds : Number(intervalSeconds);
+    const interval = Math.max(0, Number.isFinite(intervalInput) ? intervalInput : 5);
 
     if (state.goldenSpawnTimer) {
       clearInterval(state.goldenSpawnTimer);
@@ -2265,6 +2266,7 @@
   window.Bot_Stop = Bot_Stop;
   window.Bot_Help = Bot_Help;
   window.bot_spawn_golden_cookies = bot_spawn_golden_cookies;
+  window.Bot_Spawn_Golden_Cookies = bot_spawn_golden_cookies;
   window.Bot_Stop_And_Break = Bot_Stop_And_Break;
   CONTROL.version = VERSION;
   CONTROL.updatedAt = Date.now();
