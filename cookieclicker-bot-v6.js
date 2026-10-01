@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '6.26.0';
+  const VERSION = '6.27.0';
   const KEY = '__COOKIE_CLICKER_BOT_V6__';
   // Controlador persistente entre versões. Ele fica em window para que
   // os comandos globais não dependam do fechamento da V6 atualmente carregada.
@@ -23,6 +23,8 @@
 
   const CONFIG = {
     clickMs: 25,
+    virtualMouseCount: 8,
+    clicksPerVirtualMouse: 2,
     shimmerMs: 250,
     purchaseMs: 2000,
     statusMs: 30000,
@@ -259,15 +261,39 @@
   // MÓDULO 02 — CLIQUE E SHIMMERS
   // Automação direta de cookie, golden cookies, wrath cookies e reindeer.
   // ============================================================
-  /** clickCookie: Executa um clique no cookie quando o estado permite. */
+  /** clickBurstSize: Calcula quantos cliques cada ciclo deve emitir. */
+  function clickBurstSize() {
+    const mice = Math.max(1, Math.floor(Number(CONFIG.virtualMouseCount) || 8));
+    const clicksPerMouse = Math.max(1, Math.floor(Number(CONFIG.clicksPerVirtualMouse) || 2));
+    return mice * clicksPerMouse;
+  }
+
+  /** estimatedClickRate: Estima cliques por segundo do burst configurado. */
+  function estimatedClickRate() {
+    const interval = Math.max(5, Number(clickDelay()) || 25);
+    return (clickBurstSize() * 1000) / interval;
+  }
+
+  /**
+   * clickCookie: Emula vários mouses virtuais por ciclo.
+   * Padrão V6.27: 8 mouses × 2 cliques = 16 chamadas a Game.ClickCookie().
+   * Não cria eventos físicos do mouse; usa a API interna do jogo.
+   */
   function clickCookie() {
     if (isPaused() || state.ascensionPhase !== 'READY' || !gameReady()) return false;
     return safe(() => {
-      Game.ClickCookie();
-      state.stats.clicks++;
-      state.lastAction = 'click';
-      return true;
-    }, false, 'clique do cookie falhou');
+      const totalClicks = clickBurstSize();
+      let clicked = 0;
+
+      for (let i = 0; i < totalClicks; i++) {
+        Game.ClickCookie();
+        clicked++;
+      }
+
+      state.stats.clicks += clicked;
+      state.lastAction = 'click-burst:' + clicked;
+      return clicked > 0;
+    }, false, 'burst de cliques falhou');
   }
 
   /** clickShimmers: Processa shimmers compatíveis com a configuração. */
@@ -1013,7 +1039,9 @@
     const statisticalWeight = cleanObservations.length
       ? Math.min(maxStatisticalWeight, 0.15 + cleanObservations.length * 0.05)
       : 0;
-    const clickConversionRate = Math.max(0, Number(CONFIG.estimatedClicksPerSecond) || 10);
+    const clickConversionRate = CONFIG.virtualMouseCount || CONFIG.clicksPerVirtualMouse
+      ? estimatedClickRate()
+      : Math.max(0, Number(CONFIG.estimatedClicksPerSecond) || 10);
     const clickValueWeight = Math.max(0, Number(CONFIG.upgradeClickValueWeight) || 0.25);
     const estimatedTotalGainPerSecond = estimatedCpsGain +
       estimatedClickGain * clickConversionRate * clickValueWeight;
@@ -2155,10 +2183,19 @@
         },
         edit: 'registerTask define tarefas; runScheduledTask executa e registra resultado; watchdogTick é o dono da recuperação.'
       },
+      clicking: {
+        title: 'Cliques virtuais',
+        commands: {
+          'CookieBotV6.clickCookie()': 'executa um ciclo de cliques',
+          'Bot_Help("clicking")': 'mostra a configuração atual e o ponto de manutenção'
+        },
+        edit: 'CONFIG.virtualMouseCount define quantos mouses virtuais existem; CONFIG.clicksPerVirtualMouse define quantos cliques cada um faz por ciclo; clickDelay define a frequência dos ciclos.'
+      },
       golden: {
         title: 'Golden Cookies',
         commands: {
           'bot_spawn_golden_cookies()': 'spawna 10 Golden Cookies por padrão, com 5 segundos entre eles',
+          'CookieBotV6.clickCookie()': 'executa o burst de cliques configurado',
           'bot_spawn_golden_cookies(quantidade, intervalo)': 'define quantidade e intervalo em segundos'
         },
         edit: 'A função bot_spawn_golden_cookies usa Game.shimmer("golden"). O timer é rastreado por clearAllTimers para obedecer Bot_Stop e Bot_Stop_And_Break.'
