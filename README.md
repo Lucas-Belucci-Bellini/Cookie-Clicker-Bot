@@ -891,3 +891,44 @@ Bot_Status()
 O carregamento de uma nova V6 consulta o mesmo controlador persistente antes do auto-start.
 
 > Validação: V6.26 verificada estruturalmente no GitHub. Os controles globais, controlador persistente, estados e API `Bot.*` foram confirmados no código. Não houve execução dentro de uma sessão real do Cookie Clicker.
+
+
+## V6.27 — Burst de cliques com mouses virtuais
+
+A V6.27 altera o clique automático para trabalhar em blocos configuráveis.
+
+Configuração padrão:
+
+```js
+virtualMouseCount: 8
+clicksPerVirtualMouse: 2
+```
+
+Isso significa:
+
+```text
+8 mouses virtuais × 2 cliques = 16 cliques por ciclo
+```
+
+O ciclo continua respeitando `clickDelay`. Portanto, com `clickMs: 25`, o modelo configurado representa aproximadamente 16 chamadas a `Game.ClickCookie()` a cada 25 ms.
+
+A V6 calcula também uma taxa estimada de cliques por segundo a partir desse burst e usa esse valor na avaliação econômica dos upgrades de clique.
+
+Para alterar:
+
+```js
+CookieBotV6.config({
+  virtualMouseCount: 8,
+  clicksPerVirtualMouse: 2,
+  clickMs: 25
+})
+```
+
+Para consultar:
+
+```js
+Bot_Help('clicking')
+```
+
+> Importante: isso emula os cliques chamando a API interna do Cookie Clicker; não cria oito dispositivos físicos nem oito eventos reais de mouse.
+> Validação: estrutura da V6.27 verificada no GitHub. Não houve execução dentro de uma sessão real do Cookie Clicker.
